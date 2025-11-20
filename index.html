@@ -1,56 +1,47 @@
+
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Browser-Shell like JSLinux VM</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: #000;
-            color: #fff;
-            font-family: monospace;
-            overflow: hidden;
-        }
-        #container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-        }
-        #vm-frame {
-            width: 100%;
-            height: 100%;
-            border: none;
-            background: #000;
-        }
-        #status {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            z-index: 10;
-            background: rgba(0,0,0,0.7);
-            padding: 10px;
-            border-radius: 5px;
-            font-size: 14px;
-        }
-    </style>
+<title>Javascript PC Emulator</title>
+<style>
+.term {
+    font-family: courier,fixed,swiss,monospace,sans-serif;
+    font-size: 14px;
+    color: #f0f0f0;
+    background: #000000;
+}
+
+.termReverse {
+    color: #000000;
+    background: #00ff00;
+}
+#note {
+    font-size: 12px;
+}
+#copyright {
+    font-size: 10px;
+}
+#clipboard {
+    font-size: 12px;
+}
+</style>
+
+
 </head>
-<body>
-    <div id="container">
-        <div id="status">Loading JSLinux VM... (Alpine Linux with X11 graphics)</div>
-        <iframe id="vm-frame" src="https://bellard.org/jslinux/alpine-x86.cfg?persist=1&mem=512&graphic=1"></iframe>
-    </div>
-    <script>
-        const frame = document.getElementById('vm-frame');
-        const status = document.getElementById('status');
-        frame.onload = () => {
-            status.textContent = 'VM loaded! Interact with the graphical Linux desktop below. Right-click for menu. Use keyboard/mouse to control.';
-            setTimeout(() => status.style.opacity = '0.5', 5000); // Fade status after 5s
-        };
-        // Handle fullscreen toggle on F11 or double-click
-        document.addEventListener('keydown', (e) => { if (e.key === 'F11') { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); } });
-        frame.addEventListener('dblclick', () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); });
-    </script>
+<body onload="start()">
+
+<h1>JSLinux- Javascript PC Emulator running Linux</h1>
+
+<table border="0">
+<tr valign="top"><td>
+<script type="text/javascript" src="https://jslinux.org/utils.js"></script>
+<script type="text/javascript" src="https://jslinux.org/term.js"></script>
+<script type="text/javascript" src="https://jslinux.org/cpux86.js"></script>
+<script type="text/javascript" src="https://jslinux.org/jslinux.js"></script>
+
+
+<td><input type="button" value="Clear clipboard" onclick="clear_clipboard();"><br><textarea row="4" cols="16" id="text_clipboard"></textarea>
+</table>
+
 </body>
 </html>
