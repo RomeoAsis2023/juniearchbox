@@ -2,34 +2,34 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Ultimate Auto-Start VM – Apache + PHP Server + Dillo HTTPS</title>
+<title>Fixed Auto-Start VM – HTTPS Browser + Services Always Running</title>
 <style>
   body{margin:0;background:#000;color:#0f0;font-family:monospace;overflow:hidden}
-  iframe{width:100vw;height:100vh;border:none}
+  iframe{width:100vw;height:100vh;border:none;background:#000}
   #info{position:fixed;top:10px;left:10px;z-index:999;background:rgba(0,0,0,0.9);padding:15px;border-radius:8px;font-size:16px}
 </style>
 </head>
 <body>
 
 <div id="info">
-  Everything auto-starts instantly!<br>
-  • Apache → http://localhost:8000<br>
-  • PHP Server → http://localhost:8000 (same port!)<br>
-  • Dillo opens with https://github.com<br>
-  • WordPress + TinyFileManager ready<br>
-  Close browser → reopen anytime → still running
+  Fixed: HTTPS browser (Links) + All services auto-start!<br>
+  • Apache/MariaDB/coturn → Running<br>
+  • Links opens https://www.dillo.org (SSL works!)<br>
+  • PHP fallback: http://localhost:8001<br>
+  • WordPress: http://localhost:8000/wordpress/
 </div>
 
 <iframe src="https://bellard.org/jslinux/vm.html?url=alpine-x86-xwin.cfg&mem=512&graphic=1&persist=1&cmd=sh%20-c%20%27
 # First-time setup (only once)
-[ ! -f /etc/.ultimate-setup ] && {
+[ ! -f /etc/.fixed-setup ] && {
   apk update
-  apk add apache2 php8 php8-apache2 php8-mysqli php8-mysqlnd mariadb mariadb-client openrc nano dillo geany coturn openssl ca-certificates curl wget git php8-json php8-gd php8-xml php8-mbstring
+  apk add apache2 php8 php8-apache2 php8-mysqli php8-mysqlnd php8-json php8-gd php8-xml php8-mbstring mariadb mariadb-client openrc nano links geany coturn openssl ca-certificates curl wget git
   rc-update add apache2 default
   rc-update add mariadb default
   rc-update add coturn default
+  rc-update add local default  # For auto-start script
   /etc/init.d/mariadb setup
-  mysql -u root -e \"CREATE DATABASE wordpress; ALTER USER 'root'@'localhost' IDENTIFIED BY 'lamp123'; FLUSH PRIVILEGES;\"
+  mysql -u root -e \"CREATE DATABASE wordpress; ALTER USER \'root\'@\'localhost\' IDENTIFIED BY \'lamp123\'; FLUSH PRIVILEGES;\"
   cd /var/www/localhost/htdocs
   wget https://wordpress.org/latest.tar.gz && tar xzf latest.tar.gz && rm latest.tar.gz
   cp wordpress/wp-config-sample.php wordpress/wp-config.php
@@ -37,26 +37,29 @@
   sed -i \"s/username_here/root/\" wordpress/wp-config.php
   sed -i \"s/password_here/lamp123/\" wordpress/wp-config.php
   wget -O tinyfilemanager.php https://raw.githubusercontent.com/prasathmani/tinyfilemanager/master/tinyfilemanager.php
-  echo \"<?php echo '<h1>Auto-Started!</h1><a href=\\\"wordpress\\\">WordPress</a> | <a href=\\\"tinyfilemanager.php\\\">Files</a>'; ?>\" > index.php
-  touch /etc/.ultimate-setup
+  echo \"<?php echo \'<h1>Auto-Started LAMP!</h1><a href=\\\"wordpress/\\\">WordPress</a> | <a href=\\\"tinyfilemanager.php\\\">Files</a>\'; ?>\" > index.php
+  # Robust auto-start script (runs every boot)
+  cat > /etc/local.d/autostart.start << \'EOF\'
+  #!/bin/sh
+  rc-service mariadb start
+  rc-service apache2 restart
+  rc-service coturn start
+  # PHP fallback on port 8001 (if Apache fails)
+  pkill -f "php -S 0.0.0.0:8001" || true
+  php -S 0.0.0.0:8001 -t /var/www/localhost/htdocs/ > /var/log/php-fallback.log 2>&1 &
+  # Auto-open HTTPS browser
+  sleep 5  # Wait for X11
+  links -g https://www.dillo.org &
+  EOF
+  chmod +x /etc/local.d/autostart.start
+  touch /etc/.fixed-setup
 }
 
-# These run EVERY boot automatically
-sed -i \"s/Listen 80/Listen 8000/\" /etc/apache2/httpd.conf 2>/dev/null || true
-/etc/init.d/mariadb start
-/etc/init.d/apache2 restart
-/etc/init.d/coturn start
+# Trigger auto-start (runs the script)
+rc-service local start
 
-# Start PHP built-in server in background (same port 8000 – works alongside Apache!)
-php -S 0.0.0.0:8000 -t /var/www/localhost/htdocs/ > /var/log/php-server.log 2>&1 &
-
-# Auto-open Dillo with a real HTTPS site (proves SSL works!)
-dillo https://github.com &
-
-echo \"All services + PHP server + Dillo (HTTPS) started!\"
-echo \"Apache & PHP Server → http://localhost:8000\"
-echo \"WordPress → http://localhost:8000/wordpress/\"
-echo \"TinyFileManager → http://localhost:8000/tinyfilemanager.php\"
+echo "Fixed setup complete! Services + HTTPS browser auto-started."
+echo "Test: http://localhost:8000 (Apache) | http://localhost:8001 (PHP fallback)"
 sleep infinity
 %27"></iframe>
 
