@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Linux LAMP Server • Fullscreen v86</title>
+    <title>Linux LAMP Server • Fullscreen v86 v0.5.44</title>
     <style>
         body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; }
         #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-family: Arial; z-index: 999; text-align: center; }
@@ -26,12 +26,13 @@
     </style>
 </head>
 <body>
-    <div id="loading">Loading Linux LAMP Emulator... (first boot: 10-30s + auto LAMP install)</div>
+    <div id="loading">Loading Linux LAMP Emulator (v86@0.5.44)... (first boot: 10-20s + LAMP setup)</div>
     <div id="screen_container">
         <canvas id="screen_canvas"></canvas>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js"></script>
+    <!-- Switched to your requested v0.5.44: Loads libv86.js + auto-fetches v86.wasm (no 404s) -->
+    <script src="https://cdn.jsdelivr.net/npm/v86@0.5.44/build/libv86.js"></script>
 
     <script>
         let emulator = null;
@@ -111,15 +112,15 @@
 
                 const config = {
                     screen_container: document.getElementById("screen_canvas"),
-                    // Official v86 BIOS
+                    // Official BIOS from GitHub CDN
                     bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin" },
                     vga_bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin" },
-                    // Your requested ISO: Official lightweight Linux live CD
+                    // Lightweight Linux live CD ISO
                     cdrom: { 
                         url: "https://raw.githubusercontent.com/copy/images/master/linux.iso" 
                     },
-                    // Enable networking for package installs
-                    virtio: true,
+                    // Networking for LAMP package downloads
+                    network_relaying: true,
                     memory_size: 2 * 1024 * 1024 * 1024, // 2 GB RAM
                     vga_memory_size: 16 * 1024 * 1024, // 16 MB VRAM
                     autostart: true
@@ -137,13 +138,14 @@
                     console.log('Created new empty 10GB HD');
                 }
 
+                // For v0.5.44: Use V86 constructor
                 emulator = new V86(config);
 
                 emulator.add_listener("emulator-ready", () => {
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('screen_container').style.opacity = '1';
                     startAutoSave();
-                    console.log('Emulator ready! Boots to root shell (no pass). Auto-LAMP script runs on first boot.');
+                    console.log('Emulator ready (v86@0.5.44)! Boots to root shell (no password). Install LAMP: tce-load -wi apache php mariadb');
                 });
 
                 emulator.add_listener("emulator-stopped", () => {
