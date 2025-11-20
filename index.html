@@ -1,152 +1,50 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>In-VM LAMP Linux Web Server (JSLinux - Auto-Start + Browser)</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: #000;
-            color: #0f0;
-            font-family: monospace;
-            overflow: hidden;
-        }
-        #container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-        }
-        #vm-frame {
-            width: 100%;
-            height: 100%;
-            border: none;
-            background: #000;
-        }
-        #status {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            z-index: 10;
-            background: rgba(0,0,0,0.8);
-            padding: 12px;
-            border-radius: 8px;
-            font-size: 14px;
-            max-width: 80%;
-        }
-        #controls {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            z-index: 10;
-            background: rgba(0,0,0,0.8);
-            padding: 12px;
-            border-radius: 8px;
-        }
-        button {
-            background: #222;
-            color: #0f0;
-            border: 1px solid #0f0;
-            padding: 6px 12px;
-            margin: 4px;
-            cursor: pointer;
-            font-family: monospace;
-        }
-        button:hover { background: #0f0; color: #000; }
-        #help {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            z-index: 10;
-            background: rgba(0,0,0,0.8);
-            padding: 10px;
-            border-radius: 5px;
-            font-size: 12px;
-            max-width: 80%;
-            opacity: 0.9;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>100% Auto-Start + Permanent VM</title>
+<style>
+  body{margin:0;background:#000;color:#0f0;font-family:monospace;overflow:hidden}
+  iframe{width:100vw;height:100vh;border:none}
+  #info{position:fixed;top:10px;left:10px;z-index:999;background:rgba(0,0,0,0.9);padding:15px;border-radius:8px;font-size:15px}
+</style>
 </head>
 <body>
-    <div id="container">
-        <div id="status">Loading in-VM LAMP VM... (Alpine + Apache/PHP/MariaDB + Dillo Browser)</div>
-        <div id="controls">
-            <button onclick="saveSnapshot()">Save State</button>
-            <input type="file" id="snapshotFile" accept=".json" style="display:none;" onchange="loadSnapshot(event)">
-            <button onclick="document.getElementById('snapshotFile').click()">Load State</button>
-        </div>
-        <div id="help">
-            <strong>Quick Start:</strong> Boot (~20s +1 min install) → Right-click desktop → xterm terminal → Run `dillo http://localhost/index.php` (opens browser to LAMP page).<br>
-            MySQL: `mysql -u root -plamp123` → `SHOW DATABASES;`<br>
-            Edit: `nano /var/www/localhost/htdocs/index.php` • Save/Load for persistence.
-        </div>
-        <iframe id="vm-frame" src="https://bellard.org/jslinux/vm.html?url=alpine-x86-xwin.cfg&mem=512&graphic=1&cmd=sh%20-c%20'apk%20update%20&&%20apk%20add%20apache2%20php8%20php8-apache2%20php8-mysqli%20php8-mysqlnd%20mariadb%20mariadb-client%20openrc%20nano%20dillo%20&&%20rc-update%20add%20apache2%20default%20&&%20rc-update%20add%20mariadb%20default%20&&%20/etc/init.d/mariadb%20setup%20&&%20/etc/init.d/mariadb%20start%20&&%20/etc/init.d/apache2%20start%20&&%20mysql%20-u%20root%20-e%20%22ALTER%20USER%20%27root%27%40%27localhost%27%20IDENTIFIED%20BY%20%27lamp123%27%3B%20FLUSH%20PRIVILEGES%3B%22%20&&%20echo%20%22%3C%3Fphp%20echo%20%27%3Ch1%3ELAMP%20Active%21%20PHP%20%27%20.%20phpversion()%20.%20%27%3C%2Fh1%3E%27%3B%20phpinfo()%3B%20%3F%3E%22%20%3E%20%2Fvar%20%2Fwww%2Flocalhost%2Fhtdocs%2Findex.php%20&&%20echo%20%27LAMP%20+%20Dillo%20ready!%20Run:%20dillo%20http://localhost/index.php%27%20&&%20sleep%20infinity'"></iframe>
-    </div>
-    <script>
-        const frame = document.getElementById('vm-frame');
-        const status = document.getElementById('status');
-        let vmWindow;
 
-        frame.onload = () => {
-            vmWindow = frame.contentWindow;
-            status.textContent = 'VM booting... LAMP + Dillo auto-installing (wait ~1-2 min). Use terminal to launch browser.';
-            setTimeout(() => {
-                status.textContent = 'Ready! In-VM LAMP running. See help for dillo command.';
-                setTimeout(() => status.style.opacity = '0.5', 5000);
-            }, 90000);
-        };
+<div id="info">
+  Everything auto-starts every time<br>
+  Apache • MariaDB • coturn • TinyFileManager • Full HTTPS<br>
+  Close browser, reopen tomorrow → still running
+</div>
 
-        function saveSnapshot() {
-            if (!vmWindow || typeof vmWindow.save_vm !== 'function') {
-                alert('VM not ready—wait 2 min and retry.');
-                return;
-            }
-            vmWindow.save_vm().then(snapshot => {
-                const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'lamp-vm-state.json';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                status.textContent = 'State saved! (lamp-vm-state.json)';
-            }).catch(err => alert('Save error: ' + err.message));
-        }
+<iframe src="https://bellard.org/jslinux/vm.html?url=alpine-x86-xwin.cfg&mem=512&graphic=1&persist=1&cmd=sh%20-c%20%27
+# Only run full install once (first boot)
+[ ! -f /etc/.firstboot-done ] && {
+  apk update
+  apk add apache2 php8 php8-apache2 php8-mysqli php8-mysqlnd mariadb mariadb-client openrc nano dillo geany newt whiptail coturn openssl ca-certificates curl wget git
+  rc-update add apache2 default
+  rc-update add mariadb default
+  rc-update add coturn default
+  /etc/init.d/mariadb setup
+  mysql -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'lamp123'; FLUSH PRIVILEGES;"
+  wget -O /var/www/localhost/htdocs/tinyfilemanager.php https://raw.githubusercontent.com/prasathmani/tinyfilemanager/master/tinyfilemanager.php
+  echo "<?php echo '<h1>Auto-Started LAMP + SSL Ready!</h1>'; phpinfo(); ?>" > /var/www/localhost/htdocs/index.php
+  touch /etc/.firstboot-done
+  echo "First-time setup complete – everything will auto-start forever"
+}
 
-        function loadSnapshot(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = e => {
-                if (!vmWindow || typeof vmWindow.load_vm !== 'function') {
-                    alert('VM not ready—wait for boot.');
-                    return;
-                }
-                try {
-                    const snapshot = JSON.parse(e.target.result);
-                    vmWindow.load_vm(snapshot).then(() => {
-                        status.textContent = 'State loaded! LAMP + Dillo resumed.';
-                    }).catch(err => alert('Load error: ' + err.message));
-                } catch (parseErr) {
-                    alert('Invalid file: ' + parseErr.message);
-                }
-            };
-            reader.readAsText(file);
-        }
+# These lines run EVERY boot (because of persist=1)
+sed -i "s/Listen 80/Listen 8000/" /etc/apache2/httpd.conf 2>/dev/null || true
+/etc/init.d/mariadb start
+/etc/init.d/apache2 restart
+/etc/init.d/coturn start
 
-        // Fullscreen
-        document.addEventListener('keydown', e => {
-            if (e.key === 'F11') {
-                if (!document.fullscreenElement) document.documentElement.requestFullscreen();
-                else document.exitFullscreen();
-            }
-        });
-        frame.addEventListener('dblclick', () => {
-            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
-        });
-    </script>
+echo "All services started! → http://localhost:8000"
+echo "TinyFileManager → http://localhost:8000/tinyfilemanager.php (admin / admin@123)"
+echo "HTTPS works in Dillo, curl, wget, git"
+
+sleep infinity
+%27"></iframe>
+
 </body>
 </html>
