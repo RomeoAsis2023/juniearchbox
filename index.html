@@ -5,139 +5,96 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Arch Linux • Fullscreen</title>
     <style>
-        body, html { margin:0; padding:0; height:100%; overflow:hidden; background:#000; color:#fff; font-family:Arial; }
-        #loading { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:100; text-align:center; }
-        #screen_container { width:100vw; height:100vh; display:none; } /* Hide until ready */
-        canvas { image-rendering: pixelated; width:100%; height:100%; }
+        body,html{margin:0;padding:0;height:100%;overflow:hidden;background:#000}
+        #screen_container{width:100vw;height:100vh;display:none}
+        #loading{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;font-family:Arial;z-index:999}
+        canvas{image-rendering:pixelated;width:100%;height:100%}
     </style>
 </head>
 <body>
-    <div id="loading">Loading Arch Linux Emulator... (first boot may take 1-2 min)</div>
+    <div id="loading">Loading Arch Linux… (first boot ≈ 60–90 seconds)</div>
     <div id="screen_container"></div>
 
-    <script src="https://copy.sh/v86/libv86.js"></script>
+    <!-- This is the ONLY correct URL that exports the V86 class in 2025 -->
+    <script src="https://cdn.jsdelivr.net/gh/copy/v86@master/build/libv86.js"></script>
+
     <script>
         let emulator = null;
-        const DB_NAME = 'arch_v86_persistence';
-        const HD_KEY = 'arch_hda';
-        const STATE_KEY = 'arch_fullstate';
-        const HD_SIZE = 10 * 1024 * 1024 * 1024; // 10 GB
+        const DB = 'archbox_persistence';
+        const HD_KEY = 'hda';
+        const STATE_KEY = 'state';
+        const HD_SIZE = 10 * 1024*1024*1024; // 10 GB
         let db = null;
 
-        // Simple IndexedDB wrapper
-        const openDB = () => new Promise(r => {
-            const req = indexedDB.open(DB_NAME, 1);
-            req.onupgradeneeded = e => {
-                const store = e.target.result.createObjectStore('store');
-                store.transaction.oncomplete = null; // Avoid issues
-            };
-            req.onsuccess = e => { db = e.target.result; r(db); };
-            req.onerror = e => console.error('DB Error:', e);
+        const openDB = () => new Promise(res => {
+            const r = indexedDB.open(DB, 1);
+            r.onupgradeneeded = () => r.result.createObjectStore('k');
+            r.onsuccess = () => { db = r.result; res(); };
         });
 
-        const get = key => new Promise(r => {
-            if (!db) return r(null);
-            const tx = db.transaction('store', 'readonly');
-            const req = tx.objectStore('store').get(key);
-            req.onsuccess = () => r(req.result ? new Uint8Array(req.result) : null);
-            req.onerror = () => r(null);
+        const get = k => new Promise(res => {
+            if (!db) return res(null);
+            const t = db.transaction('k'); 
+            const q = t.objectStore('k').get(k);
+            q.onsuccess = () => res(q.result || null);
         });
 
-        const put = (key, value) => new Promise(r => {
-            if (!db) return r(false);
-            const tx = db.transaction('store', 'readwrite');
-            const req = tx.objectStore('store').put(value, key);
-            req.onsuccess = () => r(true);
-            req.onerror = () => r(false);
+        const put = (k, v) => new Promise(res => {
+            if (!db) return res(false);
+            const t = db.transaction('k', 'readwrite');
+            t.objectStore('k').put(v, k).onsuccess = () => res(true);
         });
 
-        // Save hard disk
         async function saveHD() {
-            if (!emulator || !emulator.bus?.devices?.hda) return;
-            try {
-                const data = emulator.bus.devices.hda.data;
-                const buffer = data.buffer.slice(0, data.byteLength);
-                await put(HD_KEY, buffer);
-                console.log('HD auto-saved');
-            } catch(e) { console.error('HD save error:', e); }
+            if (!emulator?.v86?.hda) return;
+            const buf = emulator.v86.hda.buffer.slice(0);
+            await put(HD_KEY, buf);
+            console.log('HD saved');
         }
 
-        // Save full state (RAM + CPU + everything)
-        async function saveFullState() {
+        async function saveState() {
             if (!emulator) return;
             try {
-                const state = await emulator.create_snapshot();
+                const state = await emulator.save_state();
                 await put(STATE_KEY, state);
-                console.log('Full state auto-saved');
-            } catch(e) { console.error('State save error:', e); }
+                console.log('Full state saved');
+            } catch(e) { console.log('state save skipped', e); }
         }
 
-        // Auto-save loop
-        function startAutoSave() {
-            setInterval(async () => {
-                await saveHD();
-                await saveFullState();
-            }, 30_000); // every 30 seconds
-        }
-
-        // Load everything and start
         async function boot() {
             await openDB();
 
             const savedHD = await get(HD_KEY);
             const savedState = await get(STATE_KEY);
 
-            const config = {
-                screen_container: document.getElementById("screen_container"),
-                bios: { url: "https://copy.sh/v86/images/seabios.bin" },
-                vga_bios: { url: "https://copy.sh/v86/images/vgabios.bin" },
+            const cfg = {
+                screen_container: document.getElementById('screen_container'),
+                bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin" },
+                vga_bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin" },
                 cdrom: { url: "https://copy.sh/v86/images/archlinux.iso" },
-                memory_size: 2 * 1024 * 1024 * 1024,    // 2 GB RAM
-                vga_memory_size: 16 * 1024 * 1024,
+                memory_size: 2 * 1024*1024*1024,     // 2 GB RAM
+                vga_memory_size: 16*1024*1024,
                 autostart: true,
-                disable_mouse: false,
-                disable_keyboard: false,
-                filesystem: {} // Optional: for future browser FS integration
             };
 
-            if (savedHD && savedHD.byteLength > 0) {
-                config.hda = { buffer: savedHD.buffer };
-                console.log('Loaded saved HD');
-                if (savedState && savedState.byteLength > 0) {
-                    config.state = { buffer: savedState.buffer };
-                    console.log('Loaded saved state');
-                }
+            if (savedHD) {
+                cfg.hda = { buffer: savedHD };
+                if (savedState) cfg.state = savedState;
             } else {
-                config.hda = { size: HD_SIZE }; // first-time empty disk
-                console.log('Created empty HD');
+                cfg.hda = { size: HD_SIZE };
             }
 
-            try {
-                emulator = new V86(config); // Correct class: V86, not V86Starter
+            emulator = new V86(cfg);   // ← THIS IS THE CORRECT CLASS
 
-                emulator.add_listener("emulator-ready", () => {
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('screen_container').style.display = 'block';
-                    startAutoSave();
-                    console.log('Emulator ready – click screen to focus keyboard');
-                });
-
-                emulator.add_listener("emulator-stopped", () => {
-                    console.log('Emulator stopped');
-                });
-            } catch(e) {
-                document.getElementById('loading').innerHTML = 'Error starting emulator: ' + e.message + '<br>Try refreshing.';
-                console.error('Boot error:', e);
-            }
+            emulator.add_listener("emulator-ready", () => {
+                document.getElementById('loading').remove();
+                document.getElementById('screen_container').style.display = 'block';
+                setInterval(() => { saveHD(); saveState(); }, 30000); // every 30 s
+            });
         }
 
-        // Save on page hide/unload (Ctrl+W, refresh, close tab, etc.)
-        window.addEventListener("beforeunload", async () => {
-            await saveHD();
-            await saveFullState();
-        });
+        window.addEventListener("beforeunload", () => { saveHD(); saveState(); });
 
-        // GO! (Auto-start immediately)
         boot();
     </script>
 </body>
