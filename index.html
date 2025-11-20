@@ -5,12 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Arch Linux • Fullscreen</title>
     <style>
-        body, html { margin:0; padding:0; height:100%; overflow:hidden; background:#000; }
-        #screen_container { width:100vw; height:100vh; }
-        canvas { image-rendering: pixelated; } /* optional: sharper pixels */
+        body, html { margin:0; padding:0; height:100%; overflow:hidden; background:#000; color:#fff; font-family:Arial; }
+        #loading { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:100; text-align:center; }
+        #screen_container { width:100vw; height:100vh; display:none; } /* Hide until ready */
+        canvas { image-rendering: pixelated; width:100%; height:100%; }
     </style>
 </head>
 <body>
+    <div id="loading">Loading Arch Linux Emulator... (first boot may take 1-2 min)</div>
     <div id="screen_container"></div>
 
     <script src="https://copy.sh/v86/libv86.js"></script>
@@ -25,38 +27,49 @@
         // Simple IndexedDB wrapper
         const openDB = () => new Promise(r => {
             const req = indexedDB.open(DB_NAME, 1);
-            req.onupgradeneeded = e => e.target.result.createObjectStore('store');
-            req.onsuccess = e => { db = e.target.result; r(); };
+            req.onupgradeneeded = e => {
+                const store = e.target.result.createObjectStore('store');
+                store.transaction.oncomplete = null; // Avoid issues
+            };
+            req.onsuccess = e => { db = e.target.result; r(db); };
+            req.onerror = e => console.error('DB Error:', e);
         });
 
         const get = key => new Promise(r => {
             if (!db) return r(null);
-            const tx = db.transaction('store'); 
+            const tx = db.transaction('store', 'readonly');
             const req = tx.objectStore('store').get(key);
-            req.onsuccess = () => r(req.result || null);
+            req.onsuccess = () => r(req.result ? new Uint8Array(req.result) : null);
+            req.onerror = () => r(null);
         });
 
         const put = (key, value) => new Promise(r => {
             if (!db) return r(false);
             const tx = db.transaction('store', 'readwrite');
-            tx.objectStore('store').put(value, key);
-            tx.oncomplete = () => r(true);
+            const req = tx.objectStore('store').put(value, key);
+            req.onsuccess = () => r(true);
+            req.onerror = () => r(false);
         });
 
         // Save hard disk
         async function saveHD() {
             if (!emulator || !emulator.bus?.devices?.hda) return;
-            const buffer = emulator.bus.devices.hda.data.buffer.slice(0);
-            await put(HD_KEY, buffer);
+            try {
+                const data = emulator.bus.devices.hda.data;
+                const buffer = data.buffer.slice(0, data.byteLength);
+                await put(HD_KEY, buffer);
+                console.log('HD auto-saved');
+            } catch(e) { console.error('HD save error:', e); }
         }
 
         // Save full state (RAM + CPU + everything)
         async function saveFullState() {
             if (!emulator) return;
             try {
-                const state = await emulator.save_state();
+                const state = await emulator.create_snapshot();
                 await put(STATE_KEY, state);
-            } catch(e) { console.log("State save skipped:", e); }
+                console.log('Full state auto-saved');
+            } catch(e) { console.error('State save error:', e); }
         }
 
         // Auto-save loop
@@ -79,28 +92,43 @@
                 bios: { url: "https://copy.sh/v86/images/seabios.bin" },
                 vga_bios: { url: "https://copy.sh/v86/images/vgabios.bin" },
                 cdrom: { url: "https://copy.sh/v86/images/archlinux.iso" },
-                memory_size: 1024 * 1024 * 1024,    // 1 GB RAM (feel free to bump to 2G)
+                memory_size: 2 * 1024 * 1024 * 1024,    // 2 GB RAM
                 vga_memory_size: 16 * 1024 * 1024,
                 autostart: true,
                 disable_mouse: false,
                 disable_keyboard: false,
+                filesystem: {} // Optional: for future browser FS integration
             };
 
-            if (savedHD) {
-                config.hda = { buffer: savedHD };
-                if (savedState) {
-                    config.initial_state = { buffer: savedState };
+            if (savedHD && savedHD.byteLength > 0) {
+                config.hda = { buffer: savedHD.buffer };
+                console.log('Loaded saved HD');
+                if (savedState && savedState.byteLength > 0) {
+                    config.state = { buffer: savedState.buffer };
+                    console.log('Loaded saved state');
                 }
             } else {
                 config.hda = { size: HD_SIZE }; // first-time empty disk
+                console.log('Created empty HD');
             }
 
-            emulator = new V86Starter(config);
+            try {
+                emulator = new V86(config); // Correct class: V86, not V86Starter
 
-            // Start auto-saving once emulator is ready
-            emulator.add_listener("emulator-ready", () => {
-                startAutoSave();
-            });
+                emulator.add_listener("emulator-ready", () => {
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('screen_container').style.display = 'block';
+                    startAutoSave();
+                    console.log('Emulator ready – click screen to focus keyboard');
+                });
+
+                emulator.add_listener("emulator-stopped", () => {
+                    console.log('Emulator stopped');
+                });
+            } catch(e) {
+                document.getElementById('loading').innerHTML = 'Error starting emulator: ' + e.message + '<br>Try refreshing.';
+                console.error('Boot error:', e);
+            }
         }
 
         // Save on page hide/unload (Ctrl+W, refresh, close tab, etc.)
@@ -109,7 +137,7 @@
             await saveFullState();
         });
 
-        // GO!
+        // GO! (Auto-start immediately)
         boot();
     </script>
 </body>
