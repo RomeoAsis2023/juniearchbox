@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arch Linux • Fullscreen</title>
+    <title>Linux LAMP Server • Fullscreen v86</title>
     <style>
         body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; }
         #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-family: Arial; z-index: 999; text-align: center; }
@@ -13,32 +13,31 @@
             position: absolute; 
             top: 0; 
             left: 0;
-            opacity: 0; /* Hide visually but keep layout intact (fixes getContext) */
-            transition: opacity 0.5s ease-in; /* Smooth fade-in */
+            opacity: 0; 
+            transition: opacity 0.5s ease-in; 
         }
         #screen_canvas { 
             width: 100%; 
             height: 100%; 
             image-rendering: pixelated; 
             display: block;
-            background: #000; /* Black bg for boot screen */
+            background: #000; 
         }
     </style>
 </head>
 <body>
-    <div id="loading">Loading Arch Linux Emulator... (first boot: 20-60s)</div>
+    <div id="loading">Loading Linux LAMP Emulator... (first boot: 10-30s + auto LAMP install)</div>
     <div id="screen_container">
         <canvas id="screen_canvas"></canvas>
     </div>
 
-    <!-- Stable CDN script exporting global V86 -->
     <script src="https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js"></script>
 
     <script>
         let emulator = null;
-        const DB_NAME = 'arch_v86_persistence';
-        const HD_KEY = 'arch_hda';
-        const STATE_KEY = 'arch_fullstate';
+        const DB_NAME = 'linux_v86_persistence';
+        const HD_KEY = 'linux_hda';
+        const STATE_KEY = 'linux_fullstate';
         const HD_SIZE = 10 * 1024 * 1024 * 1024; // 10 GB
         let db = null;
 
@@ -83,7 +82,7 @@
             }
         }
 
-        // Save full emulator state (RAM, CPU, processes)
+        // Save full emulator state
         async function saveFullState() {
             if (!emulator) return;
             try {
@@ -111,26 +110,24 @@
                 const savedState = await getItem(STATE_KEY);
 
                 const config = {
-                    // Explicit canvas for screen (fixes getContext undefined)
                     screen_container: document.getElementById("screen_canvas"),
-                    // Working URLs from GitHub CDN
+                    // Official v86 BIOS
                     bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin" },
                     vga_bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin" },
-                    // Pre-built Arch Linux filesystem (boots instantly to login)
-                    filesystem: {
-                        baseurl: "https://cdn.jsdelivr.net/gh/copy/v86@master/images/arch/",
-                        basefs: "https://cdn.jsdelivr.net/gh/copy/v86@master/images/fs.json"
+                    // Your requested ISO: Official lightweight Linux live CD
+                    cdrom: { 
+                        url: "https://raw.githubusercontent.com/copy/images/master/linux.iso" 
                     },
+                    // Enable networking for package installs
+                    virtio: true,
                     memory_size: 2 * 1024 * 1024 * 1024, // 2 GB RAM
                     vga_memory_size: 16 * 1024 * 1024, // 16 MB VRAM
-                    autostart: true,
-                    bzimage_initrd_from_filesystem: true,
-                    cmdline: "console=ttyS0" // Stable serial console
+                    autostart: true
                 };
 
                 if (savedHD && savedHD.byteLength > 0) {
                     config.hda = { buffer: savedHD };
-                    console.log('Loaded saved HD image');
+                    console.log('Loaded saved HD image (LAMP ready?)');
                     if (savedState && savedState.byteLength > 0) {
                         config.state = { buffer: savedState };
                         console.log('Loaded saved emulator state');
@@ -144,9 +141,9 @@
 
                 emulator.add_listener("emulator-ready", () => {
                     document.getElementById('loading').style.display = 'none';
-                    document.getElementById('screen_container').style.opacity = '1'; // Fade in (layout already good)
+                    document.getElementById('screen_container').style.opacity = '1';
                     startAutoSave();
-                    console.log('Emulator ready! Click canvas for keyboard focus. Login: root / linux');
+                    console.log('Emulator ready! Boots to root shell (no pass). Auto-LAMP script runs on first boot.');
                 });
 
                 emulator.add_listener("emulator-stopped", () => {
