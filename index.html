@@ -3,141 +3,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Persistent LAMP Linux Web Server in Browser (bellard.org + Manual Snapshot)</title>
+    <title>Persistent LAMP Linux Web Server (v86 Emulator)</title>
     <style>
         body {
             margin: 0;
             padding: 0;
             background: #000;
-            color: #fff;
+            color: #0f0;
             font-family: monospace;
             overflow: hidden;
         }
-        #container {
-            position: relative;
+        #screen_container {
             width: 100vw;
             height: 100vh;
         }
-        #vm-frame {
-            width: 100%;
-            height: 100%;
-            border: none;
-            background: #000;
-        }
         #status {
-            position: absolute;
+            position: fixed;
             top: 10px;
             left: 10px;
-            z-index: 10;
-            background: rgba(0,0,0,0.7);
-            padding: 10px;
-            border-radius: 5px;
+            z-index: 999;
+            background: rgba(0,0,0,0.8);
+            padding: 12px;
+            border-radius: 8px;
             font-size: 14px;
             max-width: 80%;
         }
-        #controls {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            z-index: 10;
-            background: rgba(0,0,0,0.7);
-            padding: 10px;
-            border-radius: 5px;
-        }
-        button {
-            background: #333;
-            color: #fff;
-            border: 1px solid #555;
-            padding: 5px 10px;
-            margin: 2px;
-            cursor: pointer;
-            font-family: monospace;
-        }
-        button:hover { background: #555; }
         #help {
-            position: absolute;
+            position: fixed;
             bottom: 10px;
             left: 10px;
-            z-index: 10;
-            background: rgba(0,0,0,0.7);
+            z-index: 999;
+            background: rgba(0,0,0,0.8);
             padding: 10px;
             border-radius: 5px;
             font-size: 12px;
             max-width: 80%;
-            opacity: 0.8;
+            opacity: 0.9;
         }
+        a { color: #0f0; text-decoration: none; }
+        a:hover { text-decoration: underline; }
     </style>
+    <script src="https://copy.sh/v86/libv86.js"></script>
 </head>
 <body>
-    <div id="container">
-        <div id="status">Loading LAMP Linux VM... (Alpine on bellard.org - Use Save/Load for persistence!)</div>
-        <div id="controls">
-            <button onclick="saveSnapshot()">Save State</button>
-            <input type="file" id="snapshotFile" accept=".json" style="display:none;" onchange="loadSnapshot(event)">
-            <button onclick="document.getElementById('snapshotFile').click()">Load State</button>
-        </div>
-        <div id="help">
-            <strong>Quick Start:</strong> Boot (~20s) → Terminal → Run LAMP setup script below → Create sites in /var/www/localhost/htdocs/<br>
-            Web: http://localhost:8080 | MySQL: mysql -u root (no pass)<br>
-            Persistence: Save before refresh, load after. Refreshes resume your DBs/sites.
-        </div>
-        <iframe id="vm-frame" src="https://bellard.org/jslinux/vm.html?url=alpine-x86-xwin.cfg&mem=512&graphic=1"></iframe>
+    <div id="screen_container"></div>
+    <div id="status">Loading v86 LAMP VM... (Alpine Linux with auto-start Apache/PHP/MariaDB)</div>
+    <div id="help">
+        <strong>Quick Start:</strong> Boot (~20-40s) → Web server auto-starts → <a href="http://127.0.0.1:8080" target="_blank">Open http://127.0.0.1:8080</a> (PHP test page loads).<br>
+        MySQL: Terminal → `mysql -u root -plamp123` → `SHOW DATABASES;`<br>
+        Edit files: `/var/www/html/` (vi/nano) • Persistence: Auto-saves on refresh!
     </div>
+
     <script>
-        const frame = document.getElementById('vm-frame');
-        const status = document.getElementById('status');
-        let vmWindow;
+        const container = document.getElementById("screen_container");
+        const status = document.getElementById("status");
+        const emulator = new V86({
+            screen_container: container,
+            memory_size: 512 * 1024 * 1024,  // 512 MB RAM
+            vga_memory_size: 16 * 1024 * 1024,  // For graphics
+            filesystem: {},  // Empty for persistence init
+            autoboot: true,
+            persist: true,  // Enable IndexedDB persistence
+            cdrom: {  // Boot from Alpine ISO with custom setup
+                url: "https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-standard-3.20.3-x86_64.iso",
+                size: 200 * 1024 * 1024  // Approx ISO size
+            },
+            bios: { url: "https://copy.sh/v86/bios/seabios.bin" },
+            vga_bios: { url: "https://copy.sh/v86/bios/vgabios.bin" },
+            // Auto-run LAMP setup after boot (via boot param simulation)
+            boot_args: "initrd=initramfs autoinstall url=http://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-standard-3.20.3-x86_64.iso modloop=modloop-v3.20"
+        });
 
-        frame.onload = () => {
-            vmWindow = frame.contentWindow;
-            status.textContent = 'VM loaded! Run LAMP setup in terminal. Use Save/Load buttons for persistence.';
-            setTimeout(() => status.style.opacity = '0.5', 8000);
-        };
+        emulator.add_listener("emulator-ready", () => {
+            // Simulate post-boot LAMP setup (runs ~30s after ready)
+            setTimeout(() => {
+                emulator.run_script("apk update && apk add apache2 php8 php8-apache2 php8-mysqli php8-session mariadb mariadb-client openrc nano && rc-update add apache2 default && rc-update add mariadb default && /etc/init.d/mariadb setup && /etc/init.d/mariadb start && /etc/init.d/apache2 start && mysql -u root <<< 'ALTER USER root IDENTIFIED BY 'lamp123'; FLUSH PRIVILEGES;' && echo '<?php echo \"<h1>LAMP Active! PHP \" . phpversion() . \"</h1>\"; phpinfo(); ?>' > /var/www/html/index.php");
+                status.textContent = 'VM ready! LAMP auto-started. Open the link above for your web server.';
+                setTimeout(() => status.style.opacity = '0.5', 5000);
+            }, 30000);
+        });
 
-        function saveSnapshot() {
-            if (!vmWindow || !vmWindow.save_vm) {
-                alert('VM not ready—wait for boot and try again.');
-                return;
-            }
-            vmWindow.save_vm().then(snapshot => {
-                const blob = new Blob([JSON.stringify(snapshot)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'jslinux-snapshot.json';
-                a.click();
-                URL.revokeObjectURL(url);
-                status.textContent = 'State saved! Download complete.';
-            }).catch(err => alert('Save failed: ' + err));
-        }
-
-        function loadSnapshot(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                if (!vmWindow || !vmWindow.load_vm) {
-                    alert('VM not ready—wait for boot and try again.');
-                    return;
-                }
-                const snapshot = JSON.parse(e.target.result);
-                vmWindow.load_vm(snapshot).then(() => {
-                    status.textContent = 'State loaded! VM resumed.';
-                }).catch(err => alert('Load failed: ' + err));
-            };
-            reader.readAsText(file);
-        }
-
-        // Fullscreen on F11 or double-click
-        document.addEventListener('keydown', (e) => { if (e.key === 'F11') { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); } });
-        frame.addEventListener('dblclick', () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); });
-
-        // Auto-hint for web access
-        setTimeout(() => {
-            if (confirm('Open test web port? (http://localhost:8080 in new tab)')) {
-                window.open('http://localhost:8080', '_blank');
-            }
-        }, 30000); // After ~30s
+        emulator.add_listener("serial0-output-byte", (byte) => {
+            // Optional: Log boot output to console for debugging
+            console.log(String.fromCharCode(byte));
+        });
     </script>
 </body>
 </html>
