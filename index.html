@@ -3,74 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alpine LAMP Server • Fullscreen jsLinux (Iframe Embed)</title>
+    <title>Browser-Shell like JSLinux VM</title>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; }
-        #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-family: monospace; z-index: 999; text-align: center; }
-        #emulator { width: 100vw; height: 100vh; border: none; display: none; }
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            color: #fff;
+            font-family: monospace;
+            overflow: hidden;
+        }
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        #vm-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #000;
+        }
+        #status {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 10;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
-    <div id="loading">Loading Alpine LAMP Emulator... (boot: 3-5s; LAMP setup: manual or auto via commands)</div>
-    <iframe id="emulator" src="https://bellard.org/jslinux/?cfg=alpine-x86.cfg&mem=256&disks=hda"></iframe>
-
+    <div id="container">
+        <div id="status">Loading JSLinux VM... (Alpine Linux with X11 graphics)</div>
+        <iframe id="vm-frame" src="https://bellard.org/jslinux/vm.html?url=alpine-x86-xwin.cfg&mem=256&graphic=1"></iframe>
+    </div>
     <script>
-        const loadingEl = document.getElementById('loading');
-        const iframe = document.getElementById('emulator');
-        const HD_KEY = 'alpine_hda_b64';
-        const HD_SIZE = 1073741824; // 1GB
-
-        // localStorage persistence: Save/load HD as base64 URL param
-        function saveHD() {
-            // Extract HD snapshot from iframe URL or postMessage (simplified: prompt user for manual save if needed)
-            // For simplicity, use URL hash for persistence (jsLinux supports #disk=base64)
-            const currentHash = window.location.hash;
-            if (currentHash.includes('disk=')) {
-                localStorage.setItem(HD_KEY, currentHash);
-                console.log('HD auto-saved to localStorage (URL hash)');
-            } else {
-                console.log('Manual save: In VM, run "dd if=/dev/sda of=/tmp/hda.img" then export');
-            }
-        }
-
-        function loadHD() {
-            const savedHash = localStorage.getItem(HD_KEY);
-            if (savedHash) {
-                return savedHash;
-            }
-            return '';
-        }
-
-        // Auto-save every 30s + on close
-        function startAutoSave() {
-            setInterval(saveHD, 30000);
-            window.addEventListener('beforeunload', saveHD);
-        }
-
-        // Boot: Load iframe with saved HD if available
-        function boot() {
-            const savedHash = loadHD();
-            iframe.src = `https://bellard.org/jslinux/?cfg=alpine-x86.cfg&mem=256&disks=hda&net=1${savedHash}`;
-            iframe.onload = () => {
-                loadingEl.style.display = 'none';
-                iframe.style.display = 'block';
-                iframe.contentWindow.focus(); // Focus for keyboard
-                startAutoSave();
-                console.log('jsLinux iframe ready! Alpine root (no pass). See manual LAMP below.');
-            };
-        }
-
-        // Manual LAMP setup (auto-injection tricky in iframe; run these in VM console after boot)
-        console.log('LAMP Setup Commands (copy-paste into VM shell):');
-        console.log('1. apk update');
-        console.log('2. apk add apache2 php81 php81-apache2 mariadb mariadb-client');
-        console.log('3. rc-service apache2 start && rc-service mariadb start');
-        console.log('4. echo "<?php phpinfo(); ?>" > /var/www/localhost/htdocs/index.php');
-        console.log('5. mariadb -u root -e "CREATE DATABASE testdb;"');
-        console.log('Test: curl localhost | mariadb -u root');
-
-        // Start
-        boot();
+        const frame = document.getElementById('vm-frame');
+        const status = document.getElementById('status');
+        frame.onload = () => {
+            status.textContent = 'VM loaded! Interact with the graphical Linux desktop below. Right-click for menu. Use keyboard/mouse to control.';
+            setTimeout(() => status.style.opacity = '0.5', 5000); // Fade status after 5s
+        };
+        // Handle fullscreen toggle on F11 or double-click
+        document.addEventListener('keydown', (e) => { if (e.key === 'F11') { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); } });
+        frame.addEventListener('dblclick', () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); });
     </script>
 </body>
 </html>
