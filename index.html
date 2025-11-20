@@ -7,37 +7,37 @@
     <style>
         body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; }
         #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-family: monospace; z-index: 999; text-align: center; }
-        #screen { width: 100vw; height: 100vh; background: #000; }
+        #screen { width: 100vw; height: 100vh; background: #000; display: none; }
         #screen_canvas { width: 100%; height: 100%; image-rendering: pixelated; }
     </style>
 </head>
 <body>
     <div id="loading">Loading Alpine LAMP Emulator... (first boot: 5-10s + auto LAMP install)</div>
-    <div id="screen"><canvas id="screen_canvas"></canvas></div>
+    <div id="screen"><canvas id="screen_canvas" tabindex="0"></canvas></div>
 
-    <!-- Official jsLinux script (stable, no deps issues) -->
+    <!-- Official jsLinux script (loads JSLinuxConfig + startJSLinux) -->
     <script src="https://bellard.org/jslinux/jslinux.js"></script>
 
     <script>
         const loadingEl = document.getElementById('loading');
+        const screenEl = document.getElementById('screen');
         const canvas = document.getElementById('screen_canvas');
-        let jslinux = null;
         const HD_KEY = 'alpine_hda';
-        const HD_SIZE = 1073741824; // 1GB HD (enough for LAMP; grow as needed)
+        const HD_SIZE = 1073741824; // 1GB HD (ample for LAMP)
 
-        // Simple localStorage for persistence (base64 HD snapshots)
+        // localStorage persistence for HD
         function saveHD() {
-            if (!jslinux || !jslinux.hda) return;
-            const data = jslinux.hda.export();
-            localStorage.setItem(HD_KEY, btoa(String.fromCharCode(...new Uint8Array(data))));
-            console.log('HD auto-saved to localStorage');
+            if (window.disks && window.disks.hda) {
+                const data = window.disks.hda.export();
+                localStorage.setItem(HD_KEY, btoa(String.fromCharCode(...new Uint8Array(data))));
+                console.log('HD auto-saved to localStorage');
+            }
         }
 
         function loadHD() {
             const saved = localStorage.getItem(HD_KEY);
             if (saved) {
-                const data = Uint8Array.from(atob(saved), c => c.charCodeAt(0));
-                return data.buffer;
+                return Uint8Array.from(atob(saved), c => c.charCodeAt(0)).buffer;
             }
             return null;
         }
@@ -48,46 +48,75 @@
             window.addEventListener('beforeunload', saveHD);
         }
 
-        // Boot jsLinux
-        function boot() {
+        // Check if script loaded, then init
+        function initJSLinux() {
+            if (typeof startJSLinux === 'undefined') {
+                loadingEl.innerHTML = 'Error: jsLinux script failed to load. Refresh and try again.';
+                return;
+            }
+
             const savedHD = loadHD();
-            const config = {
-                screen_container: canvas,
-                // Alpine Linux (Arch-like: lightweight, apk pkg mgr)
-                autoload: 'alpine-x86.cfg',
-                // Enable net for LAMP installs
-                net: true,
+            const hasHD = savedHD !== null;
+
+            // Fixed: Use JSLinuxConfig global object
+            window.JSLinuxConfig = {
+                // Boot Alpine Linux (lightweight, Arch-like with apk)
+                url: 'https://bellard.org/jslinux/alpine-x86.cfg',
+                // Fullscreen VGA canvas
+                vga: 'canvas',
+                vga_id: 'screen_canvas',
                 // HD persistence
-                hda: savedHD ? { buffer: savedHD } : { size: HD_SIZE },
-                memory: 256, // MB RAM (bump to 512 if needed)
+                disks: ['hda'],
+                hda: hasHD ? { import: savedHD } : { size: HD_SIZE },
+                // Networking for LAMP installs
+                net: true,
+                // Memory (MB)
+                memory: 256,
+                // Auto-start
                 autostart: true
             };
 
-            jslinux = new JSLinux(config);
+            startJSLinux();
 
-            jslinux.ready = () => {
-                loadingEl.style.display = 'none';
-                canvas.style.display = 'block';
-                startAutoSave();
-                console.log('jsLinux ready! Boots Alpine root (no pass). Auto-LAMP runs on first boot.');
-                
-                // Auto-install LAMP on first boot (runs via boot script)
-                if (!savedHD) {
-                    setTimeout(() => {
-                        jslinux.keybuf_send('apk update && apk add apache2 php81 php81-apache2 mariadb mariadb-client\n');
-                        jslinux.keybuf_send('rc-service apache2 start && rc-service mariadb start\n');
-                        jslinux.keybuf_send('echo "<?php phpinfo(); ?>" > /var/www/localhost/htdocs/index.php\n');
-                        jslinux.keybuf_send('mysql -u root -e "CREATE DATABASE testdb;"\n'); // No initial pass
-                        console.log('LAMP auto-installed! Test: curl localhost');
-                    }, 5000); // Delay for boot
+            // Post-boot hooks
+            const checkReady = setInterval(() => {
+                if (window.disks && window.disks.hda) {
+                    clearInterval(checkReady);
+                    loadingEl.style.display = 'none';
+                    screenEl.style.display = 'block';
+                    canvas.focus();
+                    startAutoSave();
+                    console.log('jsLinux ready! Boots Alpine root (no pass). LAMP auto-install if new.');
+
+                    // Auto-LAMP on first boot (keystrokes after ~3s delay)
+                    if (!hasHD) {
+                        setTimeout(() => {
+                            // Update pkgs & install LAMP
+                            sendKeys('apk update && apk add apache2 php81 php81-apache2 mariadb mariadb-client\n');
+                            // Start services
+                            setTimeout(() => sendKeys('rc-service apache2 start && rc-service mariadb start\n'), 10000);
+                            // PHP config & test page
+                            setTimeout(() => sendKeys('echo "<?php phpinfo(); ?>" > /var/www/localhost/htdocs/index.php\n'), 15000);
+                            // MySQL setup (no initial pass)
+                            setTimeout(() => sendKeys('mariadb -u root -e "CREATE DATABASE testdb;"\n'), 20000);
+                            console.log('LAMP auto-installed! Test: curl localhost');
+                        }, 3000);
+                    }
                 }
-            };
+            }, 500);
 
-            jslinux.ontrap = (trapno) => { /* Handle traps if needed */ };
+            // Helper: Send keystrokes to VM
+            function sendKeys(keys) {
+                if (window.keybuf_send) {
+                    window.keybuf_send(keys);
+                }
+            }
         }
 
-        // Auto-boot after DOM
-        window.addEventListener('load', boot);
+        // Boot after DOM + script load
+        window.addEventListener('load', () => {
+            setTimeout(initJSLinux, 500); // Delay for script globals
+        });
     </script>
 </body>
 </html>
