@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Persistent LAMP Linux Web Server (v86 Emulator)</title>
+    <title>Persistent LAMP Linux Web Server (JSLinux - Auto-Start)</title>
     <style>
         body {
             margin: 0;
@@ -13,26 +13,52 @@
             font-family: monospace;
             overflow: hidden;
         }
-        #screen_container {
+        #container {
+            position: relative;
             width: 100vw;
             height: 100vh;
         }
+        #vm-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #000;
+        }
         #status {
-            position: fixed;
+            position: absolute;
             top: 10px;
             left: 10px;
-            z-index: 999;
+            z-index: 10;
             background: rgba(0,0,0,0.8);
             padding: 12px;
             border-radius: 8px;
             font-size: 14px;
             max-width: 80%;
         }
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+            background: rgba(0,0,0,0.8);
+            padding: 12px;
+            border-radius: 8px;
+        }
+        button {
+            background: #222;
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 6px 12px;
+            margin: 4px;
+            cursor: pointer;
+            font-family: monospace;
+        }
+        button:hover { background: #0f0; color: #000; }
         #help {
-            position: fixed;
+            position: absolute;
             bottom: 10px;
             left: 10px;
-            z-index: 999;
+            z-index: 10;
             background: rgba(0,0,0,0.8);
             padding: 10px;
             border-radius: 5px;
@@ -43,50 +69,93 @@
         a { color: #0f0; text-decoration: none; }
         a:hover { text-decoration: underline; }
     </style>
-    <script src="https://copy.sh/v86/libv86.js"></script>
 </head>
 <body>
-    <div id="screen_container"></div>
-    <div id="status">Loading v86 LAMP VM... (Alpine Linux with auto-start Apache/PHP/MariaDB)</div>
-    <div id="help">
-        <strong>Quick Start:</strong> Boot (~20-40s) → Web server auto-starts → <a href="http://127.0.0.1:8080" target="_blank">Open http://127.0.0.1:8080</a> (PHP test page loads).<br>
-        MySQL: Terminal → `mysql -u root -plamp123` → `SHOW DATABASES;`<br>
-        Edit files: `/var/www/html/` (vi/nano) • Persistence: Auto-saves on refresh!
+    <div id="container">
+        <div id="status">Loading auto-start LAMP VM... (Alpine Linux + Apache/PHP/MariaDB)</div>
+        <div id="controls">
+            <button onclick="saveSnapshot()">Save State</button>
+            <input type="file" id="snapshotFile" accept=".json" style="display:none;" onchange="loadSnapshot(event)">
+            <button onclick="document.getElementById('snapshotFile').click()">Load State</button>
+        </div>
+        <div id="help">
+            <strong>Quick Start:</strong> Boot (~20-40s, auto-installs LAMP) → <a href="http://127.0.0.1:8080" target="_blank">Open http://127.0.0.1:8080</a> (PHP test page).<br>
+            MySQL: Terminal → `mysql -u root -plamp123` → `SHOW DATABASES;`<br>
+            Edit sites: `/var/www/localhost/htdocs/` • Persistence: Save/Load before/after refresh.
+        </div>
+        <iframe id="vm-frame" src="https://bellard.org/jslinux/vm.html?url=alpine-x86-xwin.cfg&mem=512&graphic=1&cmd=apk%20update%20%26%26%20apk%20add%20apache2%20php%20php-apache2%20php-mysqli%20php-mysqlnd%20mariadb%20mariadb-client%20openrc%20nano%20%26%26%20rc-update%20add%20apache2%20default%20%26%26%20rc-update%20add%20mariadb%20default%20%26%26%20/etc/init.d/mariadb%20setup%20%26%26%20/etc/init.d/mariadb%20start%20%26%26%20/etc/init.d/apache2%20start%20%26%26%20mysql%20-u%20root%20%3C%3C%3CEOF%0AALTER%20USER%20'root'%40'localhost'%20IDENTIFIED%20BY%20'lamp123'%3B%0AFLUSH%20PRIVILEGES%3B%0AEOF%20%26%26%20echo%20'<?php%20echo%20%22%3Ch1%3ELAMP%20Active!%20PHP%20%22%20.%20phpversion()%20.%20%22%3C/h1%3E%22%3B%20phpinfo()%3B%20?>'%20%3E%20/var/www/localhost/htdocs/index.php%20%26%26%20sleep%20infinity"></iframe>
     </div>
-
     <script>
-        const container = document.getElementById("screen_container");
-        const status = document.getElementById("status");
-        const emulator = new V86({
-            screen_container: container,
-            memory_size: 512 * 1024 * 1024,  // 512 MB RAM
-            vga_memory_size: 16 * 1024 * 1024,  // For graphics
-            filesystem: {},  // Empty for persistence init
-            autoboot: true,
-            persist: true,  // Enable IndexedDB persistence
-            cdrom: {  // Boot from Alpine ISO with custom setup
-                url: "https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-standard-3.20.3-x86_64.iso",
-                size: 200 * 1024 * 1024  // Approx ISO size
-            },
-            bios: { url: "https://copy.sh/v86/bios/seabios.bin" },
-            vga_bios: { url: "https://copy.sh/v86/bios/vgabios.bin" },
-            // Auto-run LAMP setup after boot (via boot param simulation)
-            boot_args: "initrd=initramfs autoinstall url=http://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-standard-3.20.3-x86_64.iso modloop=modloop-v3.20"
-        });
+        const frame = document.getElementById('vm-frame');
+        const status = document.getElementById('status');
+        let vmWindow;
 
-        emulator.add_listener("emulator-ready", () => {
-            // Simulate post-boot LAMP setup (runs ~30s after ready)
+        frame.onload = () => {
+            vmWindow = frame.contentWindow;
+            status.textContent = 'VM booting... LAMP auto-installing (wait 1-2 min). Then open the link above.';
             setTimeout(() => {
-                emulator.run_script("apk update && apk add apache2 php8 php8-apache2 php8-mysqli php8-session mariadb mariadb-client openrc nano && rc-update add apache2 default && rc-update add mariadb default && /etc/init.d/mariadb setup && /etc/init.d/mariadb start && /etc/init.d/apache2 start && mysql -u root <<< 'ALTER USER root IDENTIFIED BY 'lamp123'; FLUSH PRIVILEGES;' && echo '<?php echo \"<h1>LAMP Active! PHP \" . phpversion() . \"</h1>\"; phpinfo(); ?>' > /var/www/html/index.php");
-                status.textContent = 'VM ready! LAMP auto-started. Open the link above for your web server.';
+                status.textContent = 'Ready! LAMP running. Save state often.';
                 setTimeout(() => status.style.opacity = '0.5', 5000);
-            }, 30000);
+            }, 120000); // Update after ~2 min
+        };
+
+        function saveSnapshot() {
+            if (!vmWindow || typeof vmWindow.save_vm !== 'function') {
+                alert('VM not fully ready—wait 2 min and retry.');
+                return;
+            }
+            vmWindow.save_vm().then(snapshot => {
+                const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'jslinux-lamp-state.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                status.textContent = 'State saved! (Download: jslinux-lamp-state.json)';
+            }).catch(err => alert('Save error: ' + err.message));
+        }
+
+        function loadSnapshot(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                if (!vmWindow || typeof vmWindow.load_vm !== 'function') {
+                    alert('VM not ready—wait for boot.');
+                    return;
+                }
+                try {
+                    const snapshot = JSON.parse(e.target.result);
+                    vmWindow.load_vm(snapshot).then(() => {
+                        status.textContent = 'State loaded! Resuming LAMP session.';
+                    }).catch(err => alert('Load error: ' + err.message));
+                } catch (parseErr) {
+                    alert('Invalid snapshot file: ' + parseErr.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // Fullscreen toggle
+        document.addEventListener('keydown', e => {
+            if (e.key === 'F11') {
+                if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+                else document.exitFullscreen();
+            }
+        });
+        frame.addEventListener('dblclick', () => {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
         });
 
-        emulator.add_listener("serial0-output-byte", (byte) => {
-            // Optional: Log boot output to console for debugging
-            console.log(String.fromCharCode(byte));
-        });
+        // Auto-open web tab after boot
+        setTimeout(() => {
+            if (confirm('LAMP ready—open web server?[](http://127.0.0.1:8080)')) {
+                window.open('http://127.0.0.1:8080', '_blank');
+            }
+        }, 150000); // ~2.5 min
     </script>
 </body>
 </html>
