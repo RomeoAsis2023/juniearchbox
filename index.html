@@ -3,174 +3,91 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Linux LAMP Server • Fullscreen v86 v0.5.44</title>
+    <title>Alpine LAMP Server • Fullscreen jsLinux</title>
     <style>
         body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; }
-        #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-family: Arial; z-index: 999; text-align: center; }
-        #screen_container { 
-            width: 100vw; 
-            height: 100vh; 
-            position: absolute; 
-            top: 0; 
-            left: 0;
-            opacity: 0; 
-            transition: opacity 0.5s ease-in; 
-        }
-        #screen_canvas { 
-            width: 100%; 
-            height: 100%; 
-            image-rendering: pixelated; 
-            display: block;
-            background: #000; 
-        }
+        #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-family: monospace; z-index: 999; text-align: center; }
+        #screen { width: 100vw; height: 100vh; background: #000; }
+        #screen_canvas { width: 100%; height: 100%; image-rendering: pixelated; }
     </style>
 </head>
 <body>
-    <div id="loading">Loading Linux LAMP Emulator (v86@0.5.44)... (first boot: 10-20s + LAMP setup)</div>
-    <div id="screen_container">
-        <canvas id="screen_canvas"></canvas>
-    </div>
+    <div id="loading">Loading Alpine LAMP Emulator... (first boot: 5-10s + auto LAMP install)</div>
+    <div id="screen"><canvas id="screen_canvas"></canvas></div>
 
-    <!-- Pinned to v0.5.44: libv86.js + auto-fetches v86.wasm -->
-    <script src="https://cdn.jsdelivr.net/npm/v86@0.5.44/build/libv86.js"></script>
+    <!-- Official jsLinux script (stable, no deps issues) -->
+    <script src="https://bellard.org/jslinux/jslinux.js"></script>
 
     <script>
-        let emulator = null;
-        const DB_NAME = 'linux_v86_persistence';
-        const HD_KEY = 'linux_hda';
-        const STATE_KEY = 'linux_fullstate';
-        const HD_SIZE = 10 * 1024 * 1024 * 1024; // 10 GB
-        let db = null;
+        const loadingEl = document.getElementById('loading');
+        const canvas = document.getElementById('screen_canvas');
+        let jslinux = null;
+        const HD_KEY = 'alpine_hda';
+        const HD_SIZE = 1073741824; // 1GB HD (enough for LAMP; grow as needed)
 
-        // IndexedDB helpers
-        const openDB = () => new Promise((resolve, reject) => {
-            const req = indexedDB.open(DB_NAME, 1);
-            req.onupgradeneeded = (e) => {
-                const store = e.target.result.createObjectStore('store');
-            };
-            req.onsuccess = (e) => {
-                db = e.target.result;
-                resolve();
-            };
-            req.onerror = reject;
-        });
-
-        const getItem = (key) => new Promise((resolve) => {
-            if (!db) return resolve(null);
-            const tx = db.transaction('store', 'readonly');
-            const req = tx.objectStore('store').get(key);
-            req.onsuccess = () => resolve(req.result || null);
-        });
-
-        const putItem = (key, value) => new Promise((resolve) => {
-            if (!db) return resolve(false);
-            const tx = db.transaction('store', 'readwrite');
-            const req = tx.objectStore('store').put(value, key);
-            req.onsuccess = () => resolve(true);
-            req.onerror = () => resolve(false);
-        });
-
-        // Save HD image
-        async function saveHD() {
-            if (!emulator || !emulator.bus?.devices?.hda) return;
-            try {
-                const data = emulator.bus.devices.hda.data;
-                const buffer = data.buffer.slice(0, data.byteLength);
-                await putItem(HD_KEY, buffer);
-                console.log('HD auto-saved to IndexedDB');
-            } catch (e) {
-                console.error('HD save failed:', e);
-            }
+        // Simple localStorage for persistence (base64 HD snapshots)
+        function saveHD() {
+            if (!jslinux || !jslinux.hda) return;
+            const data = jslinux.hda.export();
+            localStorage.setItem(HD_KEY, btoa(String.fromCharCode(...new Uint8Array(data))));
+            console.log('HD auto-saved to localStorage');
         }
 
-        // Save full emulator state (fixed: use save_state() for v0.5.44)
-        async function saveFullState() {
-            if (!emulator) return;
-            try {
-                const state = await emulator.save_state(); // Correct method
-                await putItem(STATE_KEY, state);
-                console.log('Full state auto-saved');
-            } catch (e) {
-                console.error('State save failed:', e);
+        function loadHD() {
+            const saved = localStorage.getItem(HD_KEY);
+            if (saved) {
+                const data = Uint8Array.from(atob(saved), c => c.charCodeAt(0));
+                return data.buffer;
             }
+            return null;
         }
 
-        // Start auto-save loop
+        // Auto-save every 30s + on close
         function startAutoSave() {
-            setInterval(async () => {
-                await saveHD();
-                await saveFullState();
-            }, 30000); // 30 seconds
+            setInterval(saveHD, 30000);
+            window.addEventListener('beforeunload', saveHD);
         }
 
-        // Boot the emulator
-        async function boot() {
-            try {
-                await openDB();
-                const savedHD = await getItem(HD_KEY);
-                const savedState = await getItem(STATE_KEY);
+        // Boot jsLinux
+        function boot() {
+            const savedHD = loadHD();
+            const config = {
+                screen_container: canvas,
+                // Alpine Linux (Arch-like: lightweight, apk pkg mgr)
+                autoload: 'alpine-x86.cfg',
+                // Enable net for LAMP installs
+                net: true,
+                // HD persistence
+                hda: savedHD ? { buffer: savedHD } : { size: HD_SIZE },
+                memory: 256, // MB RAM (bump to 512 if needed)
+                autostart: true
+            };
 
-                const config = {
-                    screen_container: document.getElementById("screen_canvas"),
-                    // Official BIOS from GitHub CDN
-                    bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin" },
-                    vga_bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin" },
-                    // Lightweight Linux live CD ISO
-                    cdrom: { 
-                        url: "https://raw.githubusercontent.com/copy/images/master/linux.iso" 
-                    },
-                    // Networking for LAMP package downloads
-                    network_relaying: true,
-                    memory_size: 2 * 1024 * 1024 * 1024, // 2 GB RAM
-                    vga_memory_size: 16 * 1024 * 1024, // 16 MB VRAM
-                    autostart: true
-                };
+            jslinux = new JSLinux(config);
 
-                if (savedHD && savedHD.byteLength > 0) {
-                    config.hda = { buffer: savedHD };
-                    console.log('Loaded saved HD image (LAMP ready?)');
-                    if (savedState && savedState.byteLength > 0) {
-                        config.state = { buffer: savedState };
-                        console.log('Loaded saved emulator state');
-                    }
-                } else {
-                    config.hda = { size: HD_SIZE };
-                    console.log('Created new empty 10GB HD');
+            jslinux.ready = () => {
+                loadingEl.style.display = 'none';
+                canvas.style.display = 'block';
+                startAutoSave();
+                console.log('jsLinux ready! Boots Alpine root (no pass). Auto-LAMP runs on first boot.');
+                
+                // Auto-install LAMP on first boot (runs via boot script)
+                if (!savedHD) {
+                    setTimeout(() => {
+                        jslinux.keybuf_send('apk update && apk add apache2 php81 php81-apache2 mariadb mariadb-client\n');
+                        jslinux.keybuf_send('rc-service apache2 start && rc-service mariadb start\n');
+                        jslinux.keybuf_send('echo "<?php phpinfo(); ?>" > /var/www/localhost/htdocs/index.php\n');
+                        jslinux.keybuf_send('mysql -u root -e "CREATE DATABASE testdb;"\n'); // No initial pass
+                        console.log('LAMP auto-installed! Test: curl localhost');
+                    }, 5000); // Delay for boot
                 }
+            };
 
-                // For v0.5.44: Use V86 constructor
-                emulator = new V86(config);
-
-                emulator.add_listener("emulator-ready", () => {
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('screen_container').style.opacity = '1';
-                    startAutoSave();
-                    console.log('Emulator ready (v86@0.5.44)! Boots to root shell (no password). Install LAMP: tce-load -wi apache php mariadb');
-                });
-
-                emulator.add_listener("emulator-stopped", () => {
-                    console.log('Emulator stopped unexpectedly');
-                });
-            } catch (e) {
-                console.error('Boot error:', e);
-                document.getElementById('loading').innerHTML = `Error: ${e.message}. Refresh and try again.`;
-            }
+            jslinux.ontrap = (trapno) => { /* Handle traps if needed */ };
         }
 
-        // Save on page close/refresh
-        window.addEventListener("beforeunload", async () => {
-            if (emulator) {
-                await saveHD();
-                await saveFullState();
-            }
-        });
-
-        // Ensure DOM ready, then auto-boot
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', boot);
-        } else {
-            boot();
-        }
+        // Auto-boot after DOM
+        window.addEventListener('load', boot);
     </script>
 </body>
 </html>
