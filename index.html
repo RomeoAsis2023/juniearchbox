@@ -1,47 +1,143 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>Javascript PC Emulator</title>
-<style>
-.term {
-    font-family: courier,fixed,swiss,monospace,sans-serif;
-    font-size: 14px;
-    color: #f0f0f0;
-    background: #000000;
-}
-
-.termReverse {
-    color: #000000;
-    background: #00ff00;
-}
-#note {
-    font-size: 12px;
-}
-#copyright {
-    font-size: 10px;
-}
-#clipboard {
-    font-size: 12px;
-}
-</style>
-
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Persistent LAMP Linux Web Server in Browser (bellard.org + Manual Snapshot)</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            color: #fff;
+            font-family: monospace;
+            overflow: hidden;
+        }
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        #vm-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #000;
+        }
+        #status {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 10;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            max-width: 80%;
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        button {
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 5px 10px;
+            margin: 2px;
+            cursor: pointer;
+            font-family: monospace;
+        }
+        button:hover { background: #555; }
+        #help {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            z-index: 10;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            max-width: 80%;
+            opacity: 0.8;
+        }
+    </style>
 </head>
-<body onload="start()">
+<body>
+    <div id="container">
+        <div id="status">Loading LAMP Linux VM... (Alpine on bellard.org - Use Save/Load for persistence!)</div>
+        <div id="controls">
+            <button onclick="saveSnapshot()">Save State</button>
+            <input type="file" id="snapshotFile" accept=".json" style="display:none;" onchange="loadSnapshot(event)">
+            <button onclick="document.getElementById('snapshotFile').click()">Load State</button>
+        </div>
+        <div id="help">
+            <strong>Quick Start:</strong> Boot (~20s) → Terminal → Run LAMP setup script below → Create sites in /var/www/localhost/htdocs/<br>
+            Web: http://localhost:8080 | MySQL: mysql -u root (no pass)<br>
+            Persistence: Save before refresh, load after. Refreshes resume your DBs/sites.
+        </div>
+        <iframe id="vm-frame" src="https://bellard.org/jslinux/vm.html?url=alpine-x86-xwin.cfg&mem=512&graphic=1"></iframe>
+    </div>
+    <script>
+        const frame = document.getElementById('vm-frame');
+        const status = document.getElementById('status');
+        let vmWindow;
 
-<h1>JSLinux- Javascript PC Emulator running Linux</h1>
+        frame.onload = () => {
+            vmWindow = frame.contentWindow;
+            status.textContent = 'VM loaded! Run LAMP setup in terminal. Use Save/Load buttons for persistence.';
+            setTimeout(() => status.style.opacity = '0.5', 8000);
+        };
 
-<table border="0">
-<tr valign="top"><td>
-<script type="text/javascript" src="https://jslinux.org/utils.js"></script>
-<script type="text/javascript" src="https://jslinux.org/term.js"></script>
-<script type="text/javascript" src="https://jslinux.org/cpux86.js"></script>
-<script type="text/javascript" src="https://jslinux.org/jslinux.js"></script>
+        function saveSnapshot() {
+            if (!vmWindow || !vmWindow.save_vm) {
+                alert('VM not ready—wait for boot and try again.');
+                return;
+            }
+            vmWindow.save_vm().then(snapshot => {
+                const blob = new Blob([JSON.stringify(snapshot)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'jslinux-snapshot.json';
+                a.click();
+                URL.revokeObjectURL(url);
+                status.textContent = 'State saved! Download complete.';
+            }).catch(err => alert('Save failed: ' + err));
+        }
 
+        function loadSnapshot(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                if (!vmWindow || !vmWindow.load_vm) {
+                    alert('VM not ready—wait for boot and try again.');
+                    return;
+                }
+                const snapshot = JSON.parse(e.target.result);
+                vmWindow.load_vm(snapshot).then(() => {
+                    status.textContent = 'State loaded! VM resumed.';
+                }).catch(err => alert('Load failed: ' + err));
+            };
+            reader.readAsText(file);
+        }
 
-<td><input type="button" value="Clear clipboard" onclick="clear_clipboard();"><br><textarea row="4" cols="16" id="text_clipboard"></textarea>
-</table>
+        // Fullscreen on F11 or double-click
+        document.addEventListener('keydown', (e) => { if (e.key === 'F11') { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); } });
+        frame.addEventListener('dblclick', () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); });
 
+        // Auto-hint for web access
+        setTimeout(() => {
+            if (confirm('Open test web port? (http://localhost:8080 in new tab)')) {
+                window.open('http://localhost:8080', '_blank');
+            }
+        }, 30000); // After ~30s
+    </script>
 </body>
 </html>
