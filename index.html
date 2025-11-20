@@ -3,189 +3,114 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arch Linux v86 Emulator with LAMP</title>
+    <title>Arch Linux • Fullscreen</title>
     <style>
-        body { margin: 0; font-family: Arial, sans-serif; background: #000; color: #fff; }
-        #screen_container { width: 100vw; height: 100vh; }
-        #controls { position: absolute; top: 10px; left: 10px; z-index: 10; }
-        button { margin: 5px; padding: 10px; background: #333; color: #fff; border: 1px solid #666; cursor: pointer; }
-        button:hover { background: #555; }
-        #status { position: absolute; bottom: 10px; left: 10px; z-index: 10; background: rgba(0,0,0,0.5); padding: 10px; }
+        body, html { margin:0; padding:0; height:100%; overflow:hidden; background:#000; }
+        #screen_container { width:100vw; height:100vh; }
+        canvas { image-rendering: pixelated; } /* optional: sharper pixels */
     </style>
 </head>
 <body>
     <div id="screen_container"></div>
-    <div id="controls">
-        <button id="start">Start Emulator</button>
-        <button id="save_hd">Save HD to Storage</button>
-        <button id="load_hd">Load HD from Storage</button>
-        <button id="download_hd">Download HD Image</button>
-        <button id="upload_hd">Upload HD Image</button>
-        <button id="save_state">Save State</button>
-        <button id="load_state">Load State</button>
-    </div>
-    <div id="status">Status: Ready. Install Arch on HD, add LAMP via pacman, then save.</div>
 
     <script src="https://copy.sh/v86/libv86.js"></script>
     <script>
         let emulator = null;
-        let db = null;
-        const DB_NAME = 'v86_arch_storage';
+        const DB_NAME = 'arch_v86_persistence';
         const HD_KEY = 'arch_hda';
-        const STATE_KEY = 'arch_state';
-        const HD_SIZE = 10 * 1024 * 1024 * 1024; // 10GB
+        const STATE_KEY = 'arch_fullstate';
+        const HD_SIZE = 10 * 1024 * 1024 * 1024; // 10 GB
+        let db = null;
 
-        // Initialize IndexedDB
-        function initDB() {
-            const request = indexedDB.open(DB_NAME, 1);
-            request.onupgradeneeded = (e) => {
-                db = e.target.result;
-                if (!db.objectStoreNames.contains('storage')) {
-                    const store = db.createObjectStore('storage', { keyPath: 'id' });
-                    store.createIndex('id', 'id', { unique: true });
-                }
-            };
-            request.onsuccess = (e) => { db = e.target.result; };
-            request.onerror = (e) => console.error('IDB error:', e);
+        // Simple IndexedDB wrapper
+        const openDB = () => new Promise(r => {
+            const req = indexedDB.open(DB_NAME, 1);
+            req.onupgradeneeded = e => e.target.result.createObjectStore('store');
+            req.onsuccess = e => { db = e.target.result; r(); };
+        });
+
+        const get = key => new Promise(r => {
+            if (!db) return r(null);
+            const tx = db.transaction('store'); 
+            const req = tx.objectStore('store').get(key);
+            req.onsuccess = () => r(req.result || null);
+        });
+
+        const put = (key, value) => new Promise(r => {
+            if (!db) return r(false);
+            const tx = db.transaction('store', 'readwrite');
+            tx.objectStore('store').put(value, key);
+            tx.oncomplete = () => r(true);
+        });
+
+        // Save hard disk
+        async function saveHD() {
+            if (!emulator || !emulator.bus?.devices?.hda) return;
+            const buffer = emulator.bus.devices.hda.data.buffer.slice(0);
+            await put(HD_KEY, buffer);
         }
 
-        // Get from IDB
-        function getFromIDB(key) {
-            return new Promise((resolve) => {
-                if (!db) return resolve(null);
-                const txn = db.transaction('storage', 'readonly');
-                const store = txn.objectStore('storage');
-                const query = store.get(key);
-                query.onsuccess = (e) => resolve(e.target.result ? e.target.result.arrayBuffer : null);
-            });
+        // Save full state (RAM + CPU + everything)
+        async function saveFullState() {
+            if (!emulator) return;
+            try {
+                const state = await emulator.save_state();
+                await put(STATE_KEY, state);
+            } catch(e) { console.log("State save skipped:", e); }
         }
 
-        // Put to IDB
-        function putToIDB(key, arrayBuffer) {
-            return new Promise((resolve) => {
-                if (!db) return resolve(false);
-                const txn = db.transaction('storage', 'readwrite');
-                const store = txn.objectStore('storage');
-                const expire = new Date();
-                expire.setDate(expire.getDate() + 365); // 1 year
-                const query = store.put({
-                    id: key,
-                    arrayBuffer: arrayBuffer,
-                    timestamp: expire.getTime()
-                });
-                query.onsuccess = () => resolve(true);
-                query.onerror = () => resolve(false);
-            });
+        // Auto-save loop
+        function startAutoSave() {
+            setInterval(async () => {
+                await saveHD();
+                await saveFullState();
+            }, 30_000); // every 30 seconds
         }
 
-        // Start emulator
-        async function startEmulator() {
-            const hdaBuffer = await getFromIDB(HD_KEY);
+        // Load everything and start
+        async function boot() {
+            await openDB();
+
+            const savedHD = await get(HD_KEY);
+            const savedState = await get(STATE_KEY);
+
             const config = {
                 screen_container: document.getElementById("screen_container"),
                 bios: { url: "https://copy.sh/v86/images/seabios.bin" },
                 vga_bios: { url: "https://copy.sh/v86/images/vgabios.bin" },
                 cdrom: { url: "https://copy.sh/v86/images/archlinux.iso" },
-                memory_size: 512 * 1024 * 1024, // 512MB RAM
-                vga_memory_size: 8 * 1024 * 1024, // 8MB VRAM
-                autostart: true
+                memory_size: 1024 * 1024 * 1024,    // 1 GB RAM (feel free to bump to 2G)
+                vga_memory_size: 16 * 1024 * 1024,
+                autostart: true,
+                disable_mouse: false,
+                disable_keyboard: false,
             };
-            if (hdaBuffer) {
-                config.hda = { buffer: hdaBuffer };
-                document.getElementById('status').textContent = 'Status: Loaded saved HD (Arch + LAMP ready?).';
+
+            if (savedHD) {
+                config.hda = { buffer: savedHD };
+                if (savedState) {
+                    config.initial_state = { buffer: savedState };
+                }
             } else {
-                config.hda = { size: HD_SIZE };
-                document.getElementById('status').textContent = 'Status: Empty HD created. Install Arch now.';
+                config.hda = { size: HD_SIZE }; // first-time empty disk
             }
+
             emulator = new V86Starter(config);
+
+            // Start auto-saving once emulator is ready
             emulator.add_listener("emulator-ready", () => {
-                document.getElementById('status').textContent += ' Emulator ready.';
+                startAutoSave();
             });
         }
 
-        // Save HD to IDB
-        document.getElementById('save_hd').onclick = async () => {
-            if (!emulator || !emulator.bus || !emulator.bus.devices.hda) {
-                alert('Emulator not ready.');
-                return;
-            }
-            const data = emulator.bus.devices.hda.data; // Uint8Array
-            const ab = data.buffer.slice(0, data.byteLength); // ArrayBuffer
-            const success = await putToIDB(HD_KEY, ab);
-            document.getElementById('status').textContent = success ? 'HD saved to storage.' : 'Save failed (storage full?).';
-        };
+        // Save on page hide/unload (Ctrl+W, refresh, close tab, etc.)
+        window.addEventListener("beforeunload", async () => {
+            await saveHD();
+            await saveFullState();
+        });
 
-        // Load HD from IDB (reloads emulator)
-        document.getElementById('load_hd').onclick = () => {
-            location.reload(); // Simple reload to trigger auto-load
-        };
-
-        // Download HD as file
-        document.getElementById('download_hd').onclick = () => {
-            if (!emulator || !emulator.bus || !emulator.bus.devices.hda) {
-                alert('Emulator not ready.');
-                return;
-            }
-            const data = emulator.bus.devices.hda.data;
-            const blob = new Blob([data], { type: 'application/octet-stream' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'arch_hda.img';
-            a.click();
-            URL.revokeObjectURL(url);
-        };
-
-        // Upload HD from file
-        document.getElementById('upload_hd').onclick = () => {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.onchange = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    const config = { /* same as startEmulator but hda: {buffer: ev.target.result} */ };
-                    // Restart emulator with new buffer
-                    if (emulator) emulator.stop();
-                    startEmulatorWithBuffer(ev.target.result);
-                };
-                reader.readAsArrayBuffer(file);
-            };
-            input.click();
-        };
-
-        // Save state (RAM/processes)
-        document.getElementById('save_state').onclick = async () => {
-            if (!emulator) {
-                alert('Emulator not ready.');
-                return;
-            }
-            const state = await emulator.create_snapshot(); // Or emulator.serialize() if available
-            const ab = new Uint8Array(state).buffer;
-            const success = await putToIDB(STATE_KEY, ab);
-            document.getElementById('status').textContent = success ? 'State saved.' : 'State save failed.';
-        };
-
-        // Load state
-        document.getElementById('load_state').onclick = async () => {
-            if (!emulator) return;
-            const stateAb = await getFromIDB(STATE_KEY);
-            if (stateAb) {
-                await emulator.restore_state(stateAb);
-                document.getElementById('status').textContent = 'State loaded.';
-            } else {
-                alert('No saved state found.');
-            }
-        };
-
-        // Start button
-        document.getElementById('start').onclick = startEmulator;
-
-        // Init
-        initDB();
-        // Auto-start after a delay
-        setTimeout(startEmulator, 1000);
+        // GO!
+        boot();
     </script>
 </body>
 </html>
