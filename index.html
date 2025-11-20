@@ -13,13 +13,15 @@
             position: absolute; 
             top: 0; 
             left: 0;
-            visibility: hidden; /* Hidden but laid out (prevents getContext fail) */
+            opacity: 0; /* Hide visually but keep layout intact (fixes getContext) */
+            transition: opacity 0.5s ease-in; /* Smooth fade-in */
         }
         #screen_canvas { 
             width: 100%; 
             height: 100%; 
             image-rendering: pixelated; 
             display: block;
+            background: #000; /* Black bg for boot screen */
         }
     </style>
 </head>
@@ -109,11 +111,12 @@
                 const savedState = await getItem(STATE_KEY);
 
                 const config = {
-                    screen_container: document.getElementById("screen_container"), // Div with explicit canvas child
-                    // Fixed URLs: Direct GitHub CDN raw files (no 404s)
+                    // Explicit canvas for screen (fixes getContext undefined)
+                    screen_container: document.getElementById("screen_canvas"),
+                    // Working URLs from GitHub CDN
                     bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin" },
                     vga_bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin" },
-                    // Pre-built Arch Linux filesystem (instant boot, no ISO download/install)
+                    // Pre-built Arch Linux filesystem (boots instantly to login)
                     filesystem: {
                         baseurl: "https://cdn.jsdelivr.net/gh/copy/v86@master/images/arch/",
                         basefs: "https://cdn.jsdelivr.net/gh/copy/v86@master/images/fs.json"
@@ -121,8 +124,8 @@
                     memory_size: 2 * 1024 * 1024 * 1024, // 2 GB RAM
                     vga_memory_size: 16 * 1024 * 1024, // 16 MB VRAM
                     autostart: true,
-                    bzimage_initrd_from_filesystem: true, // Boot kernel/initrd from FS
-                    cmdline: "console=ttyS0" // Simple serial console for stability
+                    bzimage_initrd_from_filesystem: true,
+                    cmdline: "console=ttyS0" // Stable serial console
                 };
 
                 if (savedHD && savedHD.byteLength > 0) {
@@ -137,13 +140,13 @@
                     console.log('Created new empty 10GB HD');
                 }
 
-                emulator = new V86(config); // Confirmed correct constructor
+                emulator = new V86(config);
 
                 emulator.add_listener("emulator-ready", () => {
                     document.getElementById('loading').style.display = 'none';
-                    document.getElementById('screen_container').style.visibility = 'visible'; // Now show (already laid out)
+                    document.getElementById('screen_container').style.opacity = '1'; // Fade in (layout already good)
                     startAutoSave();
-                    console.log('Emulator ready! Click screen for keyboard focus. Login: root / linux');
+                    console.log('Emulator ready! Click canvas for keyboard focus. Login: root / linux');
                 });
 
                 emulator.add_listener("emulator-stopped", () => {
@@ -163,8 +166,12 @@
             }
         });
 
-        // Auto-boot immediately
-        boot();
+        // Ensure DOM ready, then auto-boot
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', boot);
+        } else {
+            boot();
+        }
     </script>
 </body>
 </html>
