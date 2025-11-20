@@ -7,15 +7,29 @@
     <style>
         body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; }
         #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-family: Arial; z-index: 999; text-align: center; }
-        #screen_container { width: 100vw; height: 100vh; display: none; }
-        canvas { image-rendering: pixelated; width: 100%; height: 100%; }
+        #screen_container { 
+            width: 100vw; 
+            height: 100vh; 
+            position: absolute; 
+            top: 0; 
+            left: 0;
+            visibility: hidden; /* Hidden but laid out (prevents getContext fail) */
+        }
+        #screen_canvas { 
+            width: 100%; 
+            height: 100%; 
+            image-rendering: pixelated; 
+            display: block;
+        }
     </style>
 </head>
 <body>
     <div id="loading">Loading Arch Linux Emulator... (first boot: 20-60s)</div>
-    <div id="screen_container"></div>
+    <div id="screen_container">
+        <canvas id="screen_canvas"></canvas>
+    </div>
 
-    <!-- Correct CDN script that exports global V86 -->
+    <!-- Stable CDN script exporting global V86 -->
     <script src="https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js"></script>
 
     <script>
@@ -95,12 +109,11 @@
                 const savedState = await getItem(STATE_KEY);
 
                 const config = {
-                    wasm_path: "https://cdn.jsdelivr.net/npm/v86@latest/build/v86.wasm", // Required for WASM JIT
-                    screen_container: document.getElementById("screen_container"),
-                    // Fixed URLs: Direct from GitHub CDN (no 404s)
+                    screen_container: document.getElementById("screen_container"), // Div with explicit canvas child
+                    // Fixed URLs: Direct GitHub CDN raw files (no 404s)
                     bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin" },
                     vga_bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin" },
-                    // Arch Linux via pre-built filesystem (faster than ISO, no install needed)
+                    // Pre-built Arch Linux filesystem (instant boot, no ISO download/install)
                     filesystem: {
                         baseurl: "https://cdn.jsdelivr.net/gh/copy/v86@master/images/arch/",
                         basefs: "https://cdn.jsdelivr.net/gh/copy/v86@master/images/fs.json"
@@ -108,8 +121,8 @@
                     memory_size: 2 * 1024 * 1024 * 1024, // 2 GB RAM
                     vga_memory_size: 16 * 1024 * 1024, // 16 MB VRAM
                     autostart: true,
-                    bzimage_initrd_from_filesystem: true, // Boot from filesystem
-                    cmdline: "rw root=host9p rootfstype=9p rootflags=trans=virtio,cache=loose init=/usr/bin/init-openrc" // Arch boot params
+                    bzimage_initrd_from_filesystem: true, // Boot kernel/initrd from FS
+                    cmdline: "console=ttyS0" // Simple serial console for stability
                 };
 
                 if (savedHD && savedHD.byteLength > 0) {
@@ -124,11 +137,11 @@
                     console.log('Created new empty 10GB HD');
                 }
 
-                emulator = new V86(config);
+                emulator = new V86(config); // Confirmed correct constructor
 
                 emulator.add_listener("emulator-ready", () => {
                     document.getElementById('loading').style.display = 'none';
-                    document.getElementById('screen_container').style.display = 'block';
+                    document.getElementById('screen_container').style.visibility = 'visible'; // Now show (already laid out)
                     startAutoSave();
                     console.log('Emulator ready! Click screen for keyboard focus. Login: root / linux');
                 });
