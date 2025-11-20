@@ -31,7 +31,7 @@
         <canvas id="screen_canvas"></canvas>
     </div>
 
-    <!-- Switched to your requested v0.5.44: Loads libv86.js + auto-fetches v86.wasm (no 404s) -->
+    <!-- Pinned to v0.5.44: libv86.js + auto-fetches v86.wasm -->
     <script src="https://cdn.jsdelivr.net/npm/v86@0.5.44/build/libv86.js"></script>
 
     <script>
@@ -83,11 +83,11 @@
             }
         }
 
-        // Save full emulator state
+        // Save full emulator state (fixed: use save_state() for v0.5.44)
         async function saveFullState() {
             if (!emulator) return;
             try {
-                const state = await emulator.create_snapshot();
+                const state = await emulator.save_state(); // Correct method
                 await putItem(STATE_KEY, state);
                 console.log('Full state auto-saved');
             } catch (e) {
