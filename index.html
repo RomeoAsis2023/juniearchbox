@@ -15,7 +15,7 @@
     <div id="loading">Loading Alpine LAMP Emulator... (first boot: 5-10s + auto LAMP install)</div>
     <div id="screen"><canvas id="screen_canvas" tabindex="0"></canvas></div>
 
-    <!-- Official jsLinux script (loads JSLinuxConfig + startJSLinux) -->
+    <!-- Official jsLinux script (confirmed loading: sets JSLinuxConfig + startJSLinux) -->
     <script src="https://bellard.org/jslinux/jslinux.js"></script>
 
     <script>
@@ -28,16 +28,24 @@
         // localStorage persistence for HD
         function saveHD() {
             if (window.disks && window.disks.hda) {
-                const data = window.disks.hda.export();
-                localStorage.setItem(HD_KEY, btoa(String.fromCharCode(...new Uint8Array(data))));
-                console.log('HD auto-saved to localStorage');
+                try {
+                    const data = window.disks.hda.export();
+                    localStorage.setItem(HD_KEY, btoa(String.fromCharCode(...new Uint8Array(data))));
+                    console.log('HD auto-saved to localStorage');
+                } catch (e) {
+                    console.error('HD save failed:', e);
+                }
             }
         }
 
         function loadHD() {
-            const saved = localStorage.getItem(HD_KEY);
-            if (saved) {
-                return Uint8Array.from(atob(saved), c => c.charCodeAt(0)).buffer;
+            try {
+                const saved = localStorage.getItem(HD_KEY);
+                if (saved) {
+                    return Uint8Array.from(atob(saved), c => c.charCodeAt(0)).buffer;
+                }
+            } catch (e) {
+                console.error('HD load failed:', e);
             }
             return null;
         }
@@ -48,17 +56,40 @@
             window.addEventListener('beforeunload', saveHD);
         }
 
+        // Helper: Send keystrokes to VM
+        function sendKeys(keys) {
+            if (typeof keybuf_send !== 'undefined') {
+                keybuf_send(keys);
+            } else {
+                console.error('keybuf_send not ready');
+            }
+        }
+
         // Check if script loaded, then init
         function initJSLinux() {
-            if (typeof startJSLinux === 'undefined') {
-                loadingEl.innerHTML = 'Error: jsLinux script failed to load. Refresh and try again.';
-                return;
-            }
+            let attempts = 0;
+            const maxAttempts = 10; // 5s timeout (500ms intervals)
+            const checkInterval = setInterval(() => {
+                attempts++;
+                if (typeof startJSLinux !== 'undefined') {
+                    clearInterval(checkInterval);
+                    console.log('jsLinux script loaded successfully');
+                    setupAndStart();
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(checkInterval);
+                    loadingEl.innerHTML = 'Error: jsLinux script failed to load after 5s. Refresh and check console (F12).';
+                    console.error('startJSLinux not defined after timeout');
+                } else {
+                    console.log(`Waiting for jsLinux script... (${attempts}/${maxAttempts})`);
+                }
+            }, 500);
+        }
 
+        function setupAndStart() {
             const savedHD = loadHD();
             const hasHD = savedHD !== null;
 
-            // Fixed: Use JSLinuxConfig global object
+            // Official embedding: Set JSLinuxConfig global
             window.JSLinuxConfig = {
                 // Boot Alpine Linux (lightweight, Arch-like with apk)
                 url: 'https://bellard.org/jslinux/alpine-x86.cfg',
@@ -77,8 +108,9 @@
             };
 
             startJSLinux();
+            console.log('jsLinux started with config:', window.JSLinuxConfig);
 
-            // Post-boot hooks
+            // Post-boot hooks: Poll for disks ready
             const checkReady = setInterval(() => {
                 if (window.disks && window.disks.hda) {
                     clearInterval(checkReady);
@@ -88,34 +120,32 @@
                     startAutoSave();
                     console.log('jsLinux ready! Boots Alpine root (no pass). LAMP auto-install if new.');
 
-                    // Auto-LAMP on first boot (keystrokes after ~3s delay)
+                    // Auto-LAMP on first boot (staggered keystrokes)
                     if (!hasHD) {
                         setTimeout(() => {
-                            // Update pkgs & install LAMP
-                            sendKeys('apk update && apk add apache2 php81 php81-apache2 mariadb mariadb-client\n');
-                            // Start services
-                            setTimeout(() => sendKeys('rc-service apache2 start && rc-service mariadb start\n'), 10000);
-                            // PHP config & test page
-                            setTimeout(() => sendKeys('echo "<?php phpinfo(); ?>" > /var/www/localhost/htdocs/index.php\n'), 15000);
-                            // MySQL setup (no initial pass)
-                            setTimeout(() => sendKeys('mariadb -u root -e "CREATE DATABASE testdb;"\n'), 20000);
-                            console.log('LAMP auto-installed! Test: curl localhost');
+                            sendKeys('apk update\n');
                         }, 3000);
+                        setTimeout(() => {
+                            sendKeys('apk add apache2 php81 php81-apache2 mariadb mariadb-client\n');
+                        }, 5000);
+                        setTimeout(() => {
+                            sendKeys('rc-service apache2 start && rc-service mariadb start\n');
+                        }, 15000);
+                        setTimeout(() => {
+                            sendKeys('echo "<?php phpinfo(); ?>" > /var/www/localhost/htdocs/index.php\n');
+                        }, 20000);
+                        setTimeout(() => {
+                            sendKeys('mariadb -u root -e "CREATE DATABASE testdb;"\n');
+                        }, 25000);
+                        console.log('LAMP auto-install commands sent! Monitor console for progress.');
                     }
                 }
-            }, 500);
-
-            // Helper: Send keystrokes to VM
-            function sendKeys(keys) {
-                if (window.keybuf_send) {
-                    window.keybuf_send(keys);
-                }
-            }
+            }, 1000);
         }
 
         // Boot after DOM + script load
         window.addEventListener('load', () => {
-            setTimeout(initJSLinux, 500); // Delay for script globals
+            setTimeout(initJSLinux, 100); // Small delay for script parse
         });
     </script>
 </body>
