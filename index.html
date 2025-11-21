@@ -3,159 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Persistent LAMP Linux Web Server (JSLinux - Auto-Start)</title>
+    <meta name="robots" content="noindex, nofollow">
+    <title>Fullscreen LAMP • Alpine Latest + Full Upgrade</title>
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: #000;
-            color: #0f0;
-            font-family: monospace;
-            overflow: hidden;
-        }
-        #container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-        }
-        #vm-frame {
-            width: 100%;
-            height: 100%;
-            border: none;
-            background: #000;
-        }
-        #status {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            z-index: 10;
-            background: rgba(0,0,0,0.8);
-            padding: 12px;
-            border-radius: 8px;
-            font-size: 14px;
-            max-width: 80%;
-        }
-        #controls {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            z-index: 10;
-            background: rgba(0,0,0,0.8);
-            padding: 12px;
-            border-radius: 8px;
-        }
-        button {
-            background: #222;
-            color: #0f0;
-            border: 1px solid #0f0;
-            padding: 6px 12px;
-            margin: 4px;
-            cursor: pointer;
-            font-family: monospace;
-        }
-        button:hover { background: #0f0; color: #000; }
-        #help {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            z-index: 10;
-            background: rgba(0,0,0,0.8);
-            padding: 10px;
-            border-radius: 5px;
-            font-size: 12px;
-            max-width: 80%;
-            opacity: 0.9;
-        }
-        a { color: #0f0; text-decoration: none; }
-        a:hover { text-decoration: underline; }
+        html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000}
+        iframe{position:fixed;top:0;left:0;width:100vw;height:100vh;border:none}
+        #msg{position:fixed;top:12px;left:12px;background:rgba(0,0,0,0.9);color:#0f0;
+             font-family:monospace;padding:10px 16px;border-radius:8px;z-index:9999;
+             pointer-events:none;opacity:0.95}
     </style>
 </head>
 <body>
-    <div id="container">
-        <div id="status">Loading auto-start LAMP VM... (Alpine Linux + Apache/PHP/MariaDB)</div>
-        <div id="controls">
-            <button onclick="saveSnapshot()">Save State</button>
-            <input type="file" id="snapshotFile" accept=".json" style="display:none;" onchange="loadSnapshot(event)">
-            <button onclick="document.getElementById('snapshotFile').click()">Load State</button>
-        </div>
-        <div id="help">
-            <strong>Quick Start:</strong> Boot (~20-40s, auto-installs LAMP) → <a href="http://127.0.0.1:8080" target="_blank">Open http://127.0.0.1:8080</a> (PHP test page).<br>
-            MySQL: Terminal → `mysql -u root -plamp123` → `SHOW DATABASES;`<br>
-            Edit sites: `/var/www/localhost/htdocs/` • Persistence: Save/Load before/after refresh.
-        </div>
-        <iframe id="vm-frame" src="https://bellard.org/jslinux/vm.html?url=alpine-x86-xwin.cfg&mem=512&graphic=1&cmd=apk%20update%20%26%26%20apk%20add%20apache2%20php%20php-apache2%20php-mysqli%20php-mysqlnd%20mariadb%20mariadb-client%20openrc%20nano%20%26%26%20rc-update%20add%20apache2%20default%20%26%26%20rc-update%20add%20mariadb%20default%20%26%26%20/etc/init.d/mariadb%20setup%20%26%26%20/etc/init.d/mariadb%20start%20%26%26%20/etc/init.d/apache2%20start%20%26%26%20mysql%20-u%20root%20%3C%3C%3CEOF%0AALTER%20USER%20'root'%40'localhost'%20IDENTIFIED%20BY%20'lamp123'%3B%0AFLUSH%20PRIVILEGES%3B%0AEOF%20%26%26%20echo%20'<?php%20echo%20%22%3Ch1%3ELAMP%20Active!%20PHP%20%22%20.%20phpversion()%20.%20%22%3C/h1%3E%22%3B%20phpinfo()%3B%20?>'%20%3E%20/var/www/localhost/htdocs/index.php%20%26%26%20sleep%20infinity"></iframe>
-    </div>
-    <script>
-        const frame = document.getElementById('vm-frame');
-        const status = document.getElementById('status');
-        let vmWindow;
 
-        frame.onload = () => {
-            vmWindow = frame.contentWindow;
-            status.textContent = 'VM booting... LAMP auto-installing (wait 1-2 min). Then open the link above.';
-            setTimeout(() => {
-                status.textContent = 'Ready! LAMP running. Save state often.';
-                setTimeout(() => status.style.opacity = '0.5', 5000);
-            }, 120000); // Update after ~2 min
-        };
+<iframe src="https://bellard.org/jslinux/vm.html?url=alpine-x86-xwin.cfg&mem=512&graphic=1&cmd=apk%20update%20%26%26%20apk%20upgrade%20-y%20--no-progress%20%26%26%20apk%20add%20apache2%20php%2083-php%20php83-apache2%20php83-mysqli%20php83-mysqlnd%20php83-session%20mariadb%20mariadb-client%20openrc%20nano%20curl%20%26%26%20rc-update%20add%20mariadb%20default%20%26%26%20rc-update%20add%20apache2%20default%20%26%26%20/etc/init.d/mariadb%20setup%20%3E/dev/null%202%3E%261%20%26%26%20/etc/init.d/mariadb%20start%20%26%26%20/etc/init.d/apache2%20start%20%26%26%20mysql%20-u%20root%20%3C%3C%3CEOF%0AALTER%20USER%20'root'%40'localhost'%20IDENTIFIED%20BY%20'lamp123'%3B%0ACREATE%20DATABASE%20IF%20NOT%20EXISTS%20testdb%3B%0AFLUSH%20PRIVILEGES%3B%0AEOF%20%26%26%20echo%20'<?php%20echo%20\"%3Ch1%3ELAMP%20Fully%20Upgraded%20%26%20Running!%20PHP%20\".PHP_VERSION.\"%3C/h1%3E%22%3B%20phpinfo()%3B%20?>'%20%3E%20/var/www/localhost/htdocs/index.php%20%26%26%20echo%20%22LAMP%20ready!%20http://127.0.0.1:8080%22%20%26%26%20sleep%20infinity"></iframe>
 
-        function saveSnapshot() {
-            if (!vmWindow || typeof vmWindow.save_vm !== 'function') {
-                alert('VM not fully ready—wait 2 min and retry.');
-                return;
-            }
-            vmWindow.save_vm().then(snapshot => {
-                const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'jslinux-lamp-state.json';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                status.textContent = 'State saved! (Download: jslinux-lamp-state.json)';
-            }).catch(err => alert('Save error: ' + err.message));
-        }
+<div id="msg">Booting + full system upgrade in progress… (2–4 min)</div>
 
-        function loadSnapshot(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = e => {
-                if (!vmWindow || typeof vmWindow.load_vm !== 'function') {
-                    alert('VM not ready—wait for boot.');
-                    return;
-                }
-                try {
-                    const snapshot = JSON.parse(e.target.result);
-                    vmWindow.load_vm(snapshot).then(() => {
-                        status.textContent = 'State loaded! Resuming LAMP session.';
-                    }).catch(err => alert('Load error: ' + err.message));
-                } catch (parseErr) {
-                    alert('Invalid snapshot file: ' + parseErr.message);
-                }
-            };
-            reader.readAsText(file);
-        }
+<script>
+    const msg = document.getElementById('msg');
+    setTimeout(()=>msg.textContent="Updating package index…", 5000);
+    setTimeout(()=>msg.textContent="Running apk upgrade (this can take 60–90s)…", 20000);
+    setTimeout(()=>msg.textContent="Installing Apache + PHP 8.3 + MariaDB…", 80000);
+    setTimeout(()=>{
+        msg.textContent="LAMP ready → click here or double-click screen to open web server";
+        msg.style.pointerEvents="auto";
+        msg.style.cursor="pointer";
+        msg.onclick=()=>open("http://127.0.0.1:8080","_blank");
+    }, 180000); // ~3 minutes (safe even with upgrade)
 
-        // Fullscreen toggle
-        document.addEventListener('keydown', e => {
-            if (e.key === 'F11') {
-                if (!document.fullscreenElement) document.documentElement.requestFullscreen();
-                else document.exitFullscreen();
-            }
-        });
-        frame.addEventListener('dblclick', () => {
-            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
-        });
-
-        // Auto-open web tab after boot
-        setTimeout(() => {
-            if (confirm('LAMP ready—open web server?[](http://127.0.0.1:8080)')) {
-                window.open('http://127.0.0.1:8080', '_blank');
-            }
-        }, 150000); // ~2.5 min
-    </script>
+    // Real fullscreen on double-click or F11
+    document.addEventListener('dblclick', ()=>document.documentElement.requestFullscreen());
+    document.addEventListener('keydown', e=> e.key==='F11' && (e.preventDefault(), document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()));
+</script>
 </body>
 </html>
