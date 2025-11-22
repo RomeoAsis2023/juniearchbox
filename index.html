@@ -4,48 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <title>WordPress 24/7 • Instant & Persistent • KasmWeb</title>
+    <title>Fullscreen Linux VM • JSLinux (Alpine) – Manual WordPress Setup</title>
     <style>
-        html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#111}
+        html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000}
         iframe{position:fixed;top:0;left:0;width:100vw;height:100vh;border:none}
-        #msg{
-            position:fixed;top:12px;left:12px;background:rgba(0,0,0,0.92);
-            color:#0f0;font-family:monospace;padding:10px 18px;border-radius:10px;
-            z-index:9999;pointer-events:none;opacity:0.98;font-size:15px;
-            box-shadow:0 0 20px #0f0;
-        }
-        #msg a{color:#0f0;text-decoration:underline;}
+        #msg{position:fixed;top:12px;left:12px;background:rgba(0,0,0,0.9);color:#0f0;
+             font-family:monospace;padding:10px 16px;border-radius:8px;z-index:9999;
+             pointer-events:none;opacity:0.95}
     </style>
 </head>
 <body>
-
-<!-- This is the magic line – Option 3: Official KasmWeb WordPress Desktop (persistent, fast, 24/7) -->
-<iframe src="https://kasmweb.com/registry.html#/image/kasmweb/wordpress-desktop" allowfullscreen></iframe>
-
-<div id="msg">
-    WordPress 24/7 is loading… (takes 3–8 seconds)<br>
-    Full desktop + WordPress 6.7 + PHP 8.3 + MySQL<br>
-    <strong>Everything is saved automatically – close & reopen anytime!</strong>
-</div>
-
+<!-- Updated to x86_64 Alpine for better compatibility; manual WP install needed in terminal -->
+<iframe src="https://bellard.org/jslinux/vm.html?mem=1024&graphic=1&url=alpine-x86.cfg"></iframe>
+<div id="msg">Booting JSLinux Alpine VM… (30–60s). Login: root (no password). Then run: apk add apache2 php83 mariadb wget && ... for WordPress.</div>
 <script>
     const msg = document.getElementById('msg');
-    setTimeout(() => msg.textContent = "Connecting to secure session…", 2000);
-    setTimeout(() => msg.textContent = "Launching WordPress desktop…", 5000);
-    setTimeout(() => {
-        msg.innerHTML = "WordPress ready forever!<br>→ <a href='https://localhost:6901' target='_blank'>Open WordPress Admin</a> or just use the desktop";
-        msg.style.pointerEvents = "auto";
-        msg.style.cursor = "default";
-    }, 12000);
-
+    setTimeout(()=>msg.textContent="VM booting…", 5000);
+    setTimeout(()=>{
+        msg.innerHTML="VM ready! <br>Login: <strong>root</strong> (empty password)<br>Run: <code>setup-alpine</code> then <code>apk add apache2 php83 mariadb-client wget tar</code><br>Then: <code>wget https://wordpress.org/latest.tar.gz && ...</code>";
+        msg.style.pointerEvents="auto";
+        msg.style.cursor="pointer";
+    }, 45000);
     // Fullscreen on double-click or F11
-    document.addEventListener('dblclick', () => document.documentElement.requestFullscreen());
-    document.addEventListener('keydown', e => {
-        if (e.key === 'F11') {
-            e.preventDefault();
-            document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
-        }
-    });
+    document.addEventListener('dblclick', ()=>document.documentElement.requestFullscreen());
+    document.addEventListener('keydown', e=> e.key==='F11' && (e.preventDefault(), document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()));
 </script>
 </body>
 </html>
