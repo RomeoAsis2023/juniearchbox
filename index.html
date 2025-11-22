@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <title>Fullscreen LAMP + WordPress • Alpine Latest</title>
+    <title>Junie Arch Box</title>
     <style>
         html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000}
         iframe{position:fixed;top:0;left:0;width:100vw;height:100vh;border:none}
@@ -15,26 +15,8 @@
 </head>
 <body>
 
-<iframe src="https://bellard.org/jslinux/vm.html?url=alpine-x86.cfg&mem=1024&graphic=1&cmd=apk%20update%20%26%26%20apk%20upgrade%20-y%20--no-progress%20%26%26%20apk%20add%20apache2%20php%2083-php%20php83-apache2%20php83-mysqli%20php83-mysqlnd%20php83-session%20mariadb%20mariadb-client%20openrc%20nano%20curl%20wget%20tar%20%26%26%20rc-update%20add%20mariadb%20default%20%26%26%20rc-update%20add%20apache2%20default%20%26%26%20/etc/init.d/mariadb%20setup%20%3E/dev/null%202%3E%261%20%26%26%20/etc/init.d/mariadb%20start%20%26%26%20/etc/init.d/apache2%20start%20%26%26%20mysql%20-u%20root%20%3C%3C%3CEOF%0AALTER%20USER%20'root'%40'localhost'%20IDENTIFIED%20BY%20'wordpress123'%3B%0ACREATE%20DATABASE%20IF%20NOT%20EXISTS%20wordpress%3B%0AFLUSH%20PRIVILEGES%3B%0AEOF%20%26%26%20cd%20/tmp%20%26%26%20wget%20https://wordpress.org/latest.tar.gz%20%26%26%20tar%20-xzf%20latest.tar.gz%20-C%20/var/www/localhost/htdocs/%20%26%26%20mv%20/var/www/localhost/htdocs/wordpress/*%20/var/www/localhost/htdocs/%20%26%26%20rm%20-rf%20/var/www/localhost/htdocs/wordpress%20%26%26%20chown%20-R%20apache:apache%20/var/www/localhost/htdocs/%20%26%26%20cat%20%3E%20/var/www/localhost/htdocs/wp-config.php%20%3C%3C%20EOF%0A%3C%3Fphp%0Adefine(%20'DB_NAME'%2C%20'wordpress'%20)%3B%0Adefine(%20'DB_USER'%2C%20'root'%20)%3B%0Adefine(%20'DB_PASSWORD'%20%2C%20'wordpress123'%20)%3B%0Adefine(%20'DB_HOST'%2C%20'localhost'%20)%3B%0Adefine(%20'DB_CHARSET'%2C%20'utf8'%20)%3B%0Adefine(%20'DB_COLLATE'%2C%20''%20)%3B%0A%24table_prefix%20%3D%20'wp_'%3B%0Adefine(%20'WP_DEBUG'%2C%20false%20)%3B%0Aif%20(%20!%20defined(%20'ABSPATH'%20)%20)%20%7B%0A%09define(%20'ABSPATH'%2C%20__DIR__%20.%20'/'%20)%3B%0A%7D%0Arequire_once%20ABSPATH%20.%20'wp-settings.php'%3B%0A%3F%3E%0AEOF%20%26%26%20echo%20'%3C%3Fphp%20echo%20\"%3Ch1%3ELAMP%20%2B%20WordPress%20Installed!%20PHP%20\".PHP_VERSION.\"%3C/h1%3E%3Cp%3E%3Ca%20href%3D%5C%22/wp-admin/install.php%5C%22%3ESetup%20WordPress%3C/a%3E%3C/p%3E%22%3B%20%3F%3E'%20%3E%20/var/www/localhost/htdocs/index.php%20%26%26%20echo%20%22WordPress%20ready!%20http://127.0.0.1:8080/wp-admin/install.php%22%20%26%26%20sleep%20infinity"></iframe>
+<iframe src="https://bellard.org/jslinux/vm.html?url=alpine-x86.cfg&mem=1024"></iframe>
 
-<div id="msg">Booting + WordPress installation in progress… (3–5 min)</div>
 
-<script>
-    const msg = document.getElementById('msg');
-    setTimeout(()=>msg.textContent="Updating package index…", 5000);
-    setTimeout(()=>msg.textContent="Running apk upgrade (this can take 60–90s)…", 20000);
-    setTimeout(()=>msg.textContent="Installing Apache + PHP 8.3 + MariaDB…", 80000);
-    setTimeout(()=>msg.textContent="Downloading and installing WordPress…", 140000);
-    setTimeout(()=>{
-        msg.textContent="WordPress ready → click here to run WordPress setup";
-        msg.style.pointerEvents="auto";
-        msg.style.cursor="pointer";
-        msg.onclick=()=>open("http://127.0.0.1:8080/wp-admin/install.php","_blank");
-    }, 240000); // ~4 minutes (safe with WordPress installation)
-
-    // Real fullscreen on double-click or F11
-    document.addEventListener('dblclick', ()=>document.documentElement.requestFullscreen());
-    document.addEventListener('keydown', e=> e.key==='F11' && (e.preventDefault(), document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()));
-</script>
 </body>
 </html>
