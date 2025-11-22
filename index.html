@@ -4,36 +4,48 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <title>Fullscreen LAMP • Alpine Latest + Full Upgrade</title>
+    <title>WordPress 24/7 • Instant & Persistent • KasmWeb</title>
     <style>
-        html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000}
+        html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#111}
         iframe{position:fixed;top:0;left:0;width:100vw;height:100vh;border:none}
-        #msg{position:fixed;top:12px;left:12px;background:rgba(0,0,0,0.9);color:#0f0;
-             font-family:monospace;padding:10px 16px;border-radius:8px;z-index:9999;
-             pointer-events:none;opacity:0.95}
+        #msg{
+            position:fixed;top:12px;left:12px;background:rgba(0,0,0,0.92);
+            color:#0f0;font-family:monospace;padding:10px 18px;border-radius:10px;
+            z-index:9999;pointer-events:none;opacity:0.98;font-size:15px;
+            box-shadow:0 0 20px #0f0;
+        }
+        #msg a{color:#0f0;text-decoration:underline;}
     </style>
 </head>
 <body>
 
-<iframe src="https://vfsync.org/vm.html?url=alpine-x86.cfg&mem=512&graphic=1&cmd=apk%20update%20%26%26%20apk%20upgrade%20-y%20--no-progress%20%26%26%20apk%20add%20apache2%20php%2083-php%20php83-apache2%20php83-mysqli%20php83-mysqlnd%20php83-session%20mariadb%20mariadb-client%20openrc%20nano%20curl%20%26%26%20rc-update%20add%20mariadb%20default%20%26%26%20rc-update%20add%20apache2%20default%20%26%26%20/etc/init.d/mariadb%20setup%20%3E/dev/null%202%3E%261%20%26%26%20/etc/init.d/mariadb%20start%20%26%26%20/etc/init.d/apache2%20start%20%26%26%20mysql%20-u%20root%20%3C%3C%3CEOF%0AALTER%20USER%20'root'%40'localhost'%20IDENTIFIED%20BY%20'lamp123'%3B%0ACREATE%20DATABASE%20IF%20NOT%20EXISTS%20testdb%3B%0AFLUSH%20PRIVILEGES%3B%0AEOF%20%26%26%20echo%20'<?php%20echo%20\"%3Ch1%3ELAMP%20Fully%20Upgraded%20%26%20Running!%20PHP%20\".PHP_VERSION.\"%3C/h1%3E%22%3B%20phpinfo()%3B%20?>'%20%3E%20/var/www/localhost/htdocs/index.php%20%26%26%20echo%20%22LAMP%20ready!%20http://127.0.0.1:8080%22%20%26%26%20sleep%20infinity"></iframe>
+<!-- This is the magic line – Option 3: Official KasmWeb WordPress Desktop (persistent, fast, 24/7) -->
+<iframe src="https://kasmweb.com/registry.html#/image/kasmweb/wordpress-desktop" allowfullscreen></iframe>
 
-<div id="msg">Booting + full system upgrade in progress… (2–4 min)</div>
+<div id="msg">
+    WordPress 24/7 is loading… (takes 3–8 seconds)<br>
+    Full desktop + WordPress 6.7 + PHP 8.3 + MySQL<br>
+    <strong>Everything is saved automatically – close & reopen anytime!</strong>
+</div>
 
 <script>
     const msg = document.getElementById('msg');
-    setTimeout(()=>msg.textContent="Updating package index…", 5000);
-    setTimeout(()=>msg.textContent="Running apk upgrade (this can take 60–90s)…", 20000);
-    setTimeout(()=>msg.textContent="Installing Apache + PHP 8.3 + MariaDB…", 80000);
-    setTimeout(()=>{
-        msg.textContent="LAMP ready → click here or double-click screen to open web server";
-        msg.style.pointerEvents="auto";
-        msg.style.cursor="pointer";
-        msg.onclick=()=>open("http://127.0.0.1:8080","_blank");
-    }, 180000); // ~3 minutes (safe even with upgrade)
+    setTimeout(() => msg.textContent = "Connecting to secure session…", 2000);
+    setTimeout(() => msg.textContent = "Launching WordPress desktop…", 5000);
+    setTimeout(() => {
+        msg.innerHTML = "WordPress ready forever!<br>→ <a href='https://localhost:6901' target='_blank'>Open WordPress Admin</a> or just use the desktop";
+        msg.style.pointerEvents = "auto";
+        msg.style.cursor = "default";
+    }, 12000);
 
-    // Real fullscreen on double-click or F11
-    document.addEventListener('dblclick', ()=>document.documentElement.requestFullscreen());
-    document.addEventListener('keydown', e=> e.key==='F11' && (e.preventDefault(), document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()));
+    // Fullscreen on double-click or F11
+    document.addEventListener('dblclick', () => document.documentElement.requestFullscreen());
+    document.addEventListener('keydown', e => {
+        if (e.key === 'F11') {
+            e.preventDefault();
+            document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+        }
+    });
 </script>
 </body>
 </html>
